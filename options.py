@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import os
 import argparse
 import time
+import json
 
 file_dir = os.path.dirname(__file__)  # the directory that options.py resides in
 
@@ -27,8 +28,8 @@ class MonodepthOptions:
         self.parser.add_argument("--split",
                                  type=str,
                                  help="which training split to use",
-                                 choices=["endovis", "hamlyn"],
-                                 default="endovis")
+                                 choices=["endovis", "hamlyn", "hk"],
+                                 default="hk")
         self.parser.add_argument("--num_layers",
                                  type=int,
                                  help="number of resnet layers",
@@ -37,8 +38,8 @@ class MonodepthOptions:
         self.parser.add_argument("--dataset",
                                  type=str,
                                  help="dataset to train on",
-                                 default="endovis",
-                                 choices=["endovis", "hamlyn"])
+                                 default="hk",
+                                 choices=["endovis", "hamlyn", "hk"])
         self.parser.add_argument("--height",
                                  type=int,
                                  help="input image height",
@@ -94,7 +95,7 @@ class MonodepthOptions:
         self.parser.add_argument("--num_epochs",
                                  type=int,
                                  help="number of epochs",
-                                 default=30)
+                                 default=20)
         self.parser.add_argument("--scheduler_step_size",
                                  type=int,
                                  help="step size of the scheduler",
@@ -139,7 +140,7 @@ class MonodepthOptions:
         self.parser.add_argument("--save_frequency",
                                  type=int,
                                  help="number of epochs between each save",
-                                 default=1)
+                                 default=10)
 
         # EVALUATION options
         self.parser.add_argument("--eval_stereo",
@@ -181,7 +182,21 @@ class MonodepthOptions:
                                  help="if set will perform the flipping post processing "
                                       "from the original monodepth paper",
                                  action="store_true")
-
+        self.parser.add_argument("--distorted", help="if set, uses distorted intrinsics",
+                                 action="store_true")
+        self.parser.add_argument("--config", type=str,
+                                 help='path to the config file',
+                                 default=None)
+        
     def parse(self):
         self.options = self.parser.parse_args()
+        
+        if self.options.config is not None:
+          # Load options from the configuration file
+          with open(self.options.config, 'r') as f:
+               config = json.load(f)
+          
+          # Update default options with options from the configuration file
+          for key, value in config.items():
+               setattr(self.options, key, value)
         return self.options

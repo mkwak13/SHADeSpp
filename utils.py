@@ -9,7 +9,7 @@ import PIL.Image as pil
 import torchvision.transforms as T
 import matplotlib as mpl
 import matplotlib.cm as cm
-from torchvision.utils import flow_to_image
+# from torchvision.utils import flow_to_image
 
 def readlines(filename):
     """Read all the lines in a text file and return as a list

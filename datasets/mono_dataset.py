@@ -151,17 +151,22 @@ class MonoDataset(data.Dataset):
         do_flip = self.is_train and random.random() > 0.5
 
         line = self.filenames[index].split()
-        folder = line[0]
-
-        if len(line) == 3:
-            frame_index = int(line[1])
-        else:
-            frame_index = 0
-
-        if len(line) == 3:
-            side = line[2]
-        else:
+        if len(line) == 1:
+            folder = os.path.dirname(line[0])
+            frame_index = int(os.path.basename(line[0]).split(".")[0])
             side = None
+        else:
+            folder = line[0]
+
+            if len(line) == 3:
+                frame_index = int(line[1])
+            else:
+                frame_index = 0
+
+            if len(line) == 3:
+                side = line[2]
+            else:
+                side = None
 
         for i in self.frame_idxs:
             if i == "s":

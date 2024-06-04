@@ -1,5 +1,12 @@
 from __future__ import absolute_import, division, print_function
 
+import numpy as np
+from itertools import chain
+from PIL import Image
+
+import glob
+from sklearn.model_selection import train_test_split
+
 import time
 import json
 import datasets
@@ -82,31 +89,63 @@ class Trainer:
         print("Training is using:\n  ", self.device)
 
         # data
-        datasets_dict = {"endovis": datasets.SCAREDRAWDataset}
+        datasets_dict = {"endovis": datasets.SCAREDRAWDataset,
+                         "hk": datasets.HKDataset}
         self.dataset = datasets_dict[self.opt.dataset]
 
         fpath = os.path.join(os.path.dirname(__file__), "splits", self.opt.split, "{}_files.txt")
-        train_filenames = readlines(fpath.format("train"))
-        val_filenames = readlines(fpath.format("val"))
-        img_ext = '.png'  
-
+        img_ext = '.png' if self.opt.png else '.jpg'
+        
+        if self.opt.split == "hk":
+            sub_files =[]
+            if not isinstance(self.opt.data_path, list):
+                self.opt.data_path = [self.opt.data_path]
+            
+            trainval = []
+            for data_path in self.opt.data_path:
+                contents_lists = glob.glob(os.path.join(data_path, "*"))
+                sub_files =[]
+                for subdir in contents_lists:
+                    sub_files.append(sorted(glob.glob(os.path.join(subdir,f"*{img_ext}")))[1:-1])
+                all_files = list(chain.from_iterable(sub_files))
+                trainval.append(train_test_split(all_files, test_size=0.1, shuffle=False))
+            train_filenames = list(chain.from_iterable([trainval[i][1] for i in range(len(trainval))]))
+            val_filenames = list(chain.from_iterable([trainval[i][0] for i in range(len(trainval))]))
+            
+        else:
+            train_filenames = readlines(fpath.format("train"))
+            val_filenames = readlines(fpath.format("val"))
+                
         num_train_samples = len(train_filenames)
         self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epochs
 
-        train_dataset = self.dataset(
-            self.opt.data_path, train_filenames, self.opt.height, self.opt.width,
-            self.opt.frame_ids, 4, is_train=True, img_ext=img_ext)
+        if self.opt.dataset == "hk":
+            train_dataset = self.dataset(
+                self.opt.data_path, train_filenames, self.opt.height, self.opt.width,
+                self.opt.frame_ids, 4, is_train=True, img_ext=img_ext, distorted = self.opt.distorted)
+        else:
+            train_dataset = self.dataset(
+                self.opt.data_path, train_filenames, self.opt.height, self.opt.width,
+                self.opt.frame_ids, 4, is_train=True, img_ext=img_ext)
+            
         self.train_loader = DataLoader(
             train_dataset, self.opt.batch_size, True,
             num_workers=self.opt.num_workers, pin_memory=True, drop_last=True)
-        val_dataset = self.dataset(
+        
+        if self.opt.dataset == "hk":
+            val_dataset = self.dataset(
             self.opt.data_path, val_filenames, self.opt.height, self.opt.width,
-            self.opt.frame_ids, 4, is_train=False, img_ext=img_ext)
+            self.opt.frame_ids, 4, is_train=False, img_ext=img_ext, distorted = self.opt.distorted)
+        else:
+            val_dataset = self.dataset(
+                self.opt.data_path, val_filenames, self.opt.height, self.opt.width,
+                self.opt.frame_ids, 4, is_train=False, img_ext=img_ext)
+            
         self.val_loader = DataLoader(
             val_dataset, self.opt.batch_size, False,
             num_workers=1, pin_memory=True, drop_last=True)
         self.val_iter = iter(self.val_loader)
-
+        
         self.writers = {}
         for mode in ["train", "val"]:
             self.writers[mode] = SummaryWriter(os.path.join(self.log_path, mode))
