@@ -62,7 +62,7 @@ def sec_to_hm_str(t):
     return "{:02d}h{:02d}m{:02d}s".format(h, m, s)
 
 
-def download_model_if_doesnt_exist(model_name):
+def download_model_if_doesnt_exist(model_basepath, model_name, method):
     """If pretrained kitti model doesn't exist, download and unzip it
     """
     # values are tuples of (<google cloud URL>, <md5 checksum>)
@@ -96,10 +96,10 @@ def download_model_if_doesnt_exist(model_name):
              "cdc5fc9b23513c07d5b19235d9ef08f7"),
         }
 
-    if not os.path.exists("models"):
-        os.makedirs("models")
+    if not os.path.exists(f"{model_basepath}/{method}"):
+        os.makedirs(f"{model_basepath}/{method}")
 
-    model_path = os.path.join("models", model_name)
+    model_path = os.path.join(model_basepath, method, model_name)
 
     def check_file_matches_md5(checksum, fpath):
         if not os.path.exists(fpath):
@@ -109,7 +109,8 @@ def download_model_if_doesnt_exist(model_name):
         return current_md5checksum == checksum
 
     # see if we have the model already downloaded...
-    if not os.path.exists(os.path.join(model_path, "encoder.pth")):
+    print(os.path.join(model_path, "encoder.pth"))
+    if not (os.path.exists(os.path.join(model_path, "encoder.pth")) or os.path.exists(os.path.join(model_path, "depth.pth"))):
 
         model_url, required_md5checksum = download_paths[model_name]
 
