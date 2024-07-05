@@ -128,7 +128,7 @@ def parse_args():
                         help='use median scaling only on specular pixels')
     parser.add_argument("--notclipped", action='store_true',
                         help='skip clipping depth values')
-    parser.add_argument("--input_mask", type=str, default=None,)
+    parser.add_argument("--input_mask", type=str, default=None,) #this is only for visualization and not for masking image before putting in encoder
     parser.add_argument("--decompose", action='store_true',
                         help='use decompose model')
 
@@ -281,9 +281,10 @@ def test_simple(args, seq):
             pred_depth = (1/disp_resized).squeeze().cpu().numpy()
 
             if args.save_depth:
-                input_mask_np = input_mask[0, 0, :, :].numpy()
-                pred_depth[input_mask_np == 0] = 0
-                pred_depth[pred_depth > 0.3] = 0
+                if args.input_mask is not None:
+                    input_mask_np = input_mask[0, 0, :, :].numpy()
+                    pred_depth[input_mask_np == 0] = 0
+                    pred_depth[pred_depth > 0.3] = 0 #IMPORTANT:remove in some cases!
                 max_value = np.max(pred_depth)
                 trip_im = pil.fromarray(np.stack((pred_depth*255/max_value,)*3, axis=-1).astype(np.uint8))
                 # trip_im.save("outputimage.png")

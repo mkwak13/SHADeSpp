@@ -187,6 +187,14 @@ class MonodepthOptions:
         self.parser.add_argument("--config", type=str,
                                  help='path to the config file',
                                  default=None)
+        self.parser.add_argument("--inpaint_pseudo_gt_dir", type=str,
+                                 help='path to the pseudo gt directory',
+                                 default=None)
+        self.parser.add_argument("--flipping", help="if set, uses flipping",
+                                 action="store_true")
+        self.parser.add_argument("--rotating", help="if set, uses rotating",
+                                 action="store_true")
+        
         
     def parse(self):
         self.options = self.parser.parse_args()

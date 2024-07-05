@@ -42,10 +42,10 @@ def process_images(image_files, pred_depth_files, gt_depth_files=None, colormap 
 # List of image paths
 IID_pretrained = False
 decompose = True
-colormap = False
+colormap = True
 color = "" if colormap else "raw"
-prefix = ["/decomposed","reflect"] if decompose else ["",""]
-aug_list = ['']#, '_add', '_rem', '_addrem']
+prefix = ["/decomposed","light"] if decompose else ["",""] # reflect or light
+aug_list = ['', '_inp_pseudo', '_flip', '_rot']#'_ds3', '_alb05', '_rep5', '_rec05','_lr5']#, '_add', '_rem', '_addrem']
 seq_list = ["Test1", "Test1", "Test1", "Test1"]
 idx_list = ["00000", "00020", "00050", "00060"]
 model_list = ['IID'] #['monodepth2', 'monovit', 'IID']
@@ -71,7 +71,10 @@ else:
         for seq, idx in zip(seq_list, idx_list):
             image_files = [f"/media/rema/data/DataHKGab/Undistorted/{seq}/{idx}.png"]
             gt_depth_files = [f"/media/rema/outputs/undisttrain/undist_masked/{model}/finetuned{aug_list[0]}_mono_hk_288/models/weights_19/{seq}inpainted{prefix[0]}/{prefix[1]}{idx}.png"]
-            pred_depth_files = [f"/media/rema/outputs/undisttrain/undist_masked/{model}/finetuned{aug}_mono_hk_288/models/weights_19/{seq}{prefix[0]}/{prefix[1]}{idx}.png" for aug in aug_list]
+            pred_depth_files = [f"/media/rema/outputs/undisttrain/undist_masked/{model}/finetuned_mono_hk_288{aug_list[0]}/models/weights_19/{seq}{prefix[0]}/{prefix[1]}{idx}.png"]
+            pred_depth_files.extend([f"/media/rema/outputs/undisttrain/undist_masked/{model}/finetuned_mono_hk_288{aug}/models/weights_29/{seq}{prefix[0]}/{prefix[1]}{idx}.png" for aug in aug_list[1:]])
+            # pred_depth_files.extend([f"/media/rema/outputs/undisttrain/undist/{model}/finetuned_mono_hk_288{aug_list[-1]}/models/weights_29/{seq}{prefix[0]}/{prefix[1]}{idx}.png"])
+
             # Process the images for each row
             rows.append(process_images(image_files, pred_depth_files, gt_depth_files, colormap))
 

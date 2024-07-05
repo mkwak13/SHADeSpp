@@ -9,9 +9,13 @@ from .mono_dataset import MonoDataset
 class HKInitDataset(MonoDataset):
     """Superclass for different types of KITTI dataset loaders
     """
-    def __init__(self, *args, distorted=False, **kwargs):
+    def __init__(self, *args, flipping = False, rotating = False, distorted=False, inpaint_pseudo_gt_dir = None, **kwargs):
         super(HKInitDataset, self).__init__(*args, **kwargs)
 
+        self.inpaint_pseudo_gt_dir = inpaint_pseudo_gt_dir
+        self.flipping = flipping
+        self.rotating = rotating
+        
         # NOTE: Make sure your intrinsics matrix is *normalized* by the original image size.
         # To normalize you need to scale the first row by 1 / image_width and the second row
         # by 1 / image_height. Monodepth2 assumes a principal point to be exactly centered.
@@ -36,12 +40,14 @@ class HKInitDataset(MonoDataset):
         
         return False
     
-    def get_color(self, folder, frame_index, side, do_flip):
+    def get_color(self, folder, frame_index, side, do_flip, do_rot):
         color = self.loader(self.get_image_path(folder, frame_index, side))
 
-        # if do_flip:
-        #     color = color.transpose(pil.FLIP_LEFT_RIGHT)
-
+        if do_flip and self.flipping:
+            color = color.transpose(pil.FLIP_LEFT_RIGHT)
+        if do_rot and self.rotating:
+            angle = np.random.choice([pil.ROTATE_90, pil.ROTATE_180, pil.ROTATE_270])
+            color = color.transpose(angle)
         return color
     
 

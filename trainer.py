@@ -122,7 +122,8 @@ class Trainer:
         if self.opt.dataset == "hk":
             train_dataset = self.dataset(
                 self.opt.data_path, train_filenames, self.opt.height, self.opt.width,
-                self.opt.frame_ids, 4, is_train=True, img_ext=img_ext, distorted = self.opt.distorted)
+                self.opt.frame_ids, 4, is_train=True, img_ext=img_ext, 
+                distorted = self.opt.distorted, inpaint_pseudo_gt_dir = self.opt.inpaint_pseudo_gt_dir)
         else:
             train_dataset = self.dataset(
                 self.opt.data_path, train_filenames, self.opt.height, self.opt.width,
@@ -135,7 +136,8 @@ class Trainer:
         if self.opt.dataset == "hk":
             val_dataset = self.dataset(
             self.opt.data_path, val_filenames, self.opt.height, self.opt.width,
-            self.opt.frame_ids, 4, is_train=False, img_ext=img_ext, distorted = self.opt.distorted)
+            self.opt.frame_ids, 4, is_train=False, img_ext=img_ext,
+            distorted = self.opt.distorted, inpaint_pseudo_gt_dir = self.opt.inpaint_pseudo_gt_dir)
         else:
             val_dataset = self.dataset(
                 self.opt.data_path, val_filenames, self.opt.height, self.opt.width,
@@ -371,9 +373,9 @@ class Trainer:
         loss_reprojection = 0
         loss_disp_smooth = 0
         loss_reconstruction = 0
-
+        inpaint = "inpaint_" if self.opt.inpaint_pseudo_gt_dir is not None else ""
         for frame_id in self.opt.frame_ids:
-            loss_reconstruction += (self.compute_reprojection_loss(inputs[("color_aug", frame_id, 0)], outputs[("reprojection_color", 0, frame_id)])).mean()
+            loss_reconstruction += (self.compute_reprojection_loss(inputs[(inpaint+"color_aug", frame_id, 0)], outputs[("reprojection_color", 0, frame_id)])).mean()
 
         for frame_id in self.opt.frame_ids[1:]: 
             mask = outputs[("valid_mask", 0, frame_id)]

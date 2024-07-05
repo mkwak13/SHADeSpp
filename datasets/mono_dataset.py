@@ -92,10 +92,10 @@ class MonoDataset(data.Dataset):
         """
         for k in list(inputs):
             frame = inputs[k]
-            if "color" in k:
+            if "color" in k or "inpaint_color" in k:
                 n, im, i = k
                 for i in range(self.num_scales):
-                    inputs[(n, im, i)] = self.resize[i](inputs[(n, im, i - 1)])
+                    inputs[(n, im, i)] = self.resize[i](inputs[(n, im, i - 1)])                
         
         if do_color_aug:
              fn_idx, brightness_factor, contrast_factor, saturation_factor, hue_factor = transforms.ColorJitter.get_params(
@@ -103,10 +103,10 @@ class MonoDataset(data.Dataset):
 
         for k in list(inputs):
             f = inputs[k]
-            if "color" in k:
+            if "color" in k or "inpaint_color" in k:
                 n, im, i = k
                 inputs[(n, im, i)] = self.to_tensor(f)
-                if do_color_aug:
+                if do_color_aug and "color" in k:
                     for fn_id in fn_idx:
                         if fn_id == 0 and brightness_factor is not None:
                             f = F.adjust_brightness(f, brightness_factor)
@@ -149,6 +149,7 @@ class MonoDataset(data.Dataset):
 
         do_color_aug = self.is_train and random.random() > 0.5
         do_flip = self.is_train and random.random() > 0.5
+        do_rot = self.is_train and random.random() > 0.5
 
         line = self.filenames[index].split()
         if len(line) == 1:
@@ -171,9 +172,15 @@ class MonoDataset(data.Dataset):
         for i in self.frame_idxs:
             if i == "s":
                 other_side = {"r": "l", "l": "r"}[side]
-                inputs[("color", i, -1)] = self.get_color(folder, frame_index, other_side, do_flip)
+                inputs[("color", i, -1)] = self.get_color(folder, frame_index, other_side, do_flip, do_rot)
+                if self.inpaint_pseudo_gt_dir is not None:
+                    inpainted_folder = folder.replace(self.data_path[0], self.inpaint_pseudo_gt_dir)
+                    inputs[("inpaint_color", i, -1)] = self.get_color(inpainted_folder, frame_index, other_side, do_flip, do_rot)
             else:
-                inputs[("color", i, -1)] = self.get_color(folder, frame_index + i, side, do_flip)
+                inputs[("color", i, -1)] = self.get_color(folder, frame_index + i, side, do_flip, do_rot)
+                if self.inpaint_pseudo_gt_dir is not None:
+                    inpainted_folder = folder.replace(self.data_path[0], self.inpaint_pseudo_gt_dir)
+                    inputs[("inpaint_color", i, -1)] = self.get_color(inpainted_folder, frame_index + i, side, do_flip, do_rot)
 
         # adjusting intrinsics to match each scale in the pyramid
         for scale in range(self.num_scales):
@@ -191,6 +198,7 @@ class MonoDataset(data.Dataset):
         for i in self.frame_idxs:
             del inputs[("color", i, -1)]
             del inputs[("color_aug", i, -1)]
+            del inputs[("inpaint_color", i, -1)]
 
         if self.load_depth:
             depth_gt = self.get_depth(folder, frame_index, side, do_flip)
