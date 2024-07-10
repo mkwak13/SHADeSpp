@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import numpy as np
 from itertools import chain
-from PIL import Image
+from PIL import Image, ImageFilter
 
 import glob
 from sklearn.model_selection import train_test_split
@@ -17,6 +17,8 @@ from layers import *
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 import torch.nn.functional as F
+from torchvision import transforms
+
 
 class Trainer:
     def __init__(self, options):
@@ -78,8 +80,9 @@ class Trainer:
         self.parameters_to_train += list(self.models["pose"].parameters())
 
         self.model_optimizer = optim.Adam(self.parameters_to_train,self.opt.learning_rate)
+        sched = self.opt.scheduler_step_size if type(self.opt.scheduler_step_size) == list else [self.opt.scheduler_step_size]
         self.model_lr_scheduler = optim.lr_scheduler.MultiStepLR(
-            self.model_optimizer, [self.opt.scheduler_step_size], 0.1)
+            self.model_optimizer, sched, 0.1)
 
         if self.opt.load_weights_folder is not None:
             self.load_model()
@@ -115,6 +118,12 @@ class Trainer:
         else:
             train_filenames = readlines(fpath.format("train"))
             val_filenames = readlines(fpath.format("val"))
+        
+        if self.opt.input_mask_path is not None:
+            input_mask_pil = Image.open(self.opt.input_mask_path).convert('1').filter(ImageFilter.MinFilter(size=5))
+            self.input_mask = transforms.ToTensor()(input_mask_pil).to(self.device).unsqueeze(dim=0)
+        else:
+            self.input_mask = None
                 
         num_train_samples = len(train_filenames)
         self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epochs
@@ -123,6 +132,7 @@ class Trainer:
             train_dataset = self.dataset(
                 self.opt.data_path, train_filenames, self.opt.height, self.opt.width,
                 self.opt.frame_ids, 4, is_train=True, img_ext=img_ext, 
+                flipping=self.opt.flipping, rotating=self.opt.rotating,
                 distorted = self.opt.distorted, inpaint_pseudo_gt_dir = self.opt.inpaint_pseudo_gt_dir)
         else:
             train_dataset = self.dataset(
@@ -137,6 +147,7 @@ class Trainer:
             val_dataset = self.dataset(
             self.opt.data_path, val_filenames, self.opt.height, self.opt.width,
             self.opt.frame_ids, 4, is_train=False, img_ext=img_ext,
+            flipping=self.opt.flipping, rotating=self.opt.rotating,
             distorted = self.opt.distorted, inpaint_pseudo_gt_dir = self.opt.inpaint_pseudo_gt_dir)
         else:
             val_dataset = self.dataset(
@@ -264,16 +275,23 @@ class Trainer:
         for key, ipt in inputs.items():
             inputs[key] = ipt.to(self.device)
 
+        # decompose
+        outputs ={}
+        self.decompose(inputs,outputs)
+        
         # we only feed the image with frame_id 0 through the depth encoder
-        features = self.models["encoder"](inputs["color_aug", 0, 0])
-        outputs = self.models["depth"](features)
+        if self.opt.light_in_depth:
+            features = self.models["encoder"](outputs["light", 0, 0].repeat_interleave(3, dim=1))
+        else:
+            features = self.models["encoder"](inputs["color_aug", 0, 0])
+        outputs.update(self.models["depth"](features))
 
         # pose
         outputs.update(self.predict_poses(inputs))
 
         # decompose
-        self.decompose(inputs,outputs)
-
+        self.decompose_postprocess(inputs,outputs)
+        
         losses = self.compute_losses(inputs, outputs)
 
         return outputs, losses
@@ -310,7 +328,8 @@ class Trainer:
             decompose_features = self.models["decompose_encoder"](inputs[("color_aug",f_i,0)])
             outputs[("reflectance",0,f_i)],outputs[("light",0,f_i)] = self.models["decompose"](decompose_features)
             outputs[("reprojection_color", 0, f_i)] = outputs[("reflectance", 0, f_i)]*outputs[("light", 0, f_i)]
-        
+            
+    def decompose_postprocess(self,inputs,outputs):
         disp = outputs[("disp", 0)]
         disp = F.interpolate(disp, [self.opt.height, self.opt.width], mode="bilinear", align_corners=True)
         _, depth = disp_to_depth(disp, self.opt.min_depth, self.opt.max_depth)
@@ -375,18 +394,55 @@ class Trainer:
         loss_reconstruction = 0
         inpaint = "inpaint_" if self.opt.inpaint_pseudo_gt_dir is not None else ""
         for frame_id in self.opt.frame_ids:
+            # if self.opt.input_mask_path is not None:
+            #     loss_reconstruction += (self.compute_reprojection_loss(inputs[(inpaint+"color_aug", frame_id, 0)], outputs[("reprojection_color", 0, frame_id)])*self.input_mask).sum() / self.input_mask.sum()
+            # else:
             loss_reconstruction += (self.compute_reprojection_loss(inputs[(inpaint+"color_aug", frame_id, 0)], outputs[("reprojection_color", 0, frame_id)])).mean()
 
         for frame_id in self.opt.frame_ids[1:]: 
-            mask = outputs[("valid_mask", 0, frame_id)]
+            # mask0 = outputs[("valid_mask", 0, frame_id)]
+            if self.opt.input_mask_path is not None:
+                mask = outputs[("valid_mask", 0, frame_id)].int() & self.input_mask.int()
+            else:
+                mask = outputs[("valid_mask", 0, frame_id)]
+            ## to save masks use this:
+            # def saver(tensor):
+            #     for i in range(tensor.size(0)):
+            #         # Squeeze to remove the channel dimension if it's 1 (for grayscale images)
+            #         img = tensor[i].squeeze().cpu().numpy()
+            #         # Convert to PIL image
+            #         pil_img = Image.fromarray(img.astype('uint8'))
+            #         # Save the image
+            #         pil_img.save(f'image2_{i}.png')
+                
             loss_reflec += (torch.abs(outputs[("reflectance",0,0)] - outputs[("reflectance_warp", 0, frame_id)]).mean(1, True) * mask).sum() / mask.sum()
             loss_reprojection += (self.compute_reprojection_loss(inputs[("color_aug", 0, 0)], outputs[("reprojection_color_warp", 0, frame_id)]) * mask).sum() / mask.sum()
             
         disp = outputs[("disp", 0)]
+        if self.opt.input_mask_path is not None:
+            outputs[("disp_masked", 0)] = disp * self.input_mask
+            
+        ### more options for masking with smoothness loss
+        # # Step 1: Apply mask to zero out non-masked regions
+        # masked_values = disp * mask
+        # # Step 2: Sum the masked values along the desired dimensions
+        # sum_masked = masked_values.sum(dim=(2, 3), keepdim=True)
+        # # Step 3: Count the number of masked elements (where mask == 1)
+        # mask_count = mask.sum(dim=(2, 3), keepdim=True)
+        # # Avoid division by zero by setting any zero counts to 1 (or any non-zero value)
+        # mask_count = mask_count.clamp(min=1)
+        # # Step 4: Calculate the mean over the masked regions
+        # mean_disp = sum_masked / mask_count
+        # color = inputs[("color_aug", 0, 0)]
+        # norm_disp = masked_values / (mean_disp + 1e-7)
+        ###
+        
+        ###
         color = inputs[("color_aug", 0, 0)]
         mean_disp = disp.mean(2, True).mean(3, True)
         norm_disp = disp / (mean_disp + 1e-7)
-        loss_disp_smooth = get_smooth_loss(norm_disp, color)
+        ###
+        loss_disp_smooth = get_smooth_loss(norm_disp, color)#, self.input_mask)
      
         total_loss = self.opt.reprojection_constraint*loss_reprojection / 2.0 + self.opt.reflec_constraint*(loss_reflec / 2.0) + \
                         self.opt.disparity_smoothness*loss_disp_smooth + self.opt.reconstruction_constraint*(loss_reconstruction/3.0)
@@ -435,6 +491,10 @@ class Trainer:
                 writer.add_image(
                     "disp/{}".format(j),
                    visualize_depth(outputs[("disp", 0)][j]), self.step)
+                if self.opt.input_mask_path is not None:
+                    writer.add_image(
+                        "disp_masked/{}".format(j),
+                    visualize_depth(outputs[("disp_masked", 0)][j]), self.step)
                 writer.add_image(
                         "input/{}".format(j),
                         inputs[("color", 0, 0)][j].data, self.step)

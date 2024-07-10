@@ -194,6 +194,10 @@ class MonodepthOptions:
                                  action="store_true")
         self.parser.add_argument("--rotating", help="if set, uses rotating",
                                  action="store_true")
+        self.parser.add_argument("--input_mask_path", type=str, default=None,)
+        self.parser.add_argument("--light_in_depth", help="if set, uses light in depth",
+                                 action="store_true")
+
         
         
     def parse(self):

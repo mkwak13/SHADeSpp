@@ -221,7 +221,7 @@ def upsample(x):
     return F.interpolate(x, scale_factor=2, mode="nearest")
 
 
-def get_smooth_loss(disp, img):
+def get_smooth_loss(disp, img, input_mask=None):
     
     """Computes the smoothness loss for a disparity image
     The color image is used for edge-aware smoothness
@@ -235,6 +235,11 @@ def get_smooth_loss(disp, img):
     grad_disp_x *= torch.exp(-grad_img_x)
     grad_disp_y *= torch.exp(-grad_img_y)
 
+    if input_mask is not None:
+        expanded_mask = input_mask.expand_as(disp)
+        grad_disp_x = grad_disp_x[expanded_mask[:, :, :, :-1].to(torch.bool)]
+        grad_disp_y = grad_disp_y[expanded_mask[:, :, :-1, :].to(torch.bool)]
+        
     return grad_disp_x.mean() + grad_disp_y.mean()
 
 def get_smooth_light(light,img):
