@@ -48,19 +48,19 @@ class MonodepthOptions:
                                  type=int,
                                  help="input image width",
                                  default=320)
-        self.parser.add_argument("--disparity_smoothness",
+        self.parser.add_argument("--disparity_smoothness", # Les
                                  type=float,
                                  help="disparity smoothness weight",
                                  default=0.01)
-        self.parser.add_argument("--reconstruction_constraint",
+        self.parser.add_argument("--reconstruction_constraint", # Lds
                                  type=float,
                                  help="consistency constraint weight",
                                  default=0.2)
-        self.parser.add_argument("--reflec_constraint",
+        self.parser.add_argument("--reflec_constraint", # La
                                  type=float,
                                  help="epipolar constraint weight",
                                  default=0.2)
-        self.parser.add_argument("--reprojection_constraint",
+        self.parser.add_argument("--reprojection_constraint", #Lms
                                  type=float,
                                  help="geometry constraint weight",
                                  default=1)

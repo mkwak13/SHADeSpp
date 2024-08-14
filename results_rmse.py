@@ -37,13 +37,13 @@ def combine_stats(df, methods, augmentations):
 # Read each file into a DataFrame
 IID_pretrained = False
 
-augmentations = ['', '_pseudo', '_lightinput', '_pseudo_lightinput'] #['', '_add', '_rem', '_addrem'] #['']
+augmentations = ['', '_pseudo_dsms'] #['', '_pseudo', '_lightinput', '_pseudo_lightinput'] #['', '_add', '_rem', '_addrem'] #['']
 methods = ['IID'] #['monodepth2', 'monovit', 'IID'] #
 
 method_strings = "[!s]*" # *mono* or *IID*
 clipped = True
 distorted = False
-singlescale = True
+singlescale = False
 specscale = False
 
 if singlescale: scaling = "/singlescale" 
@@ -116,7 +116,7 @@ stats_masked= combine_stats(merged_df_mean_rmse_masked, methods, augmentations).
 
 # save to csv
 output = f"/raid/rema/outputs/{direc}"
-merged_df_mean_rmse.to_excel(f'{output}/{clip}results_rmse.xlsx', index=False)
-merged_df_mean_rmse_masked.to_excel(f'{output}/{clip}results_rmse_masked.xlsx', index=False)
-stats.to_excel(f'{output}/{clip}results_rmse_stats.xlsx', index=False)
-stats_masked.to_excel(f'{output}/{clip}results_rmse_stats_masked.xlsx', index=False)
+merged_df_mean_rmse.to_excel(f'{output}/{clip}{augmentations}results_rmse.xlsx', index=False)
+merged_df_mean_rmse_masked.to_excel(f'{output}/{clip}{augmentations}results_rmse_masked.xlsx', index=False)
+stats.to_excel(f'{output}/{clip}{augmentations}results_rmse_stats.xlsx', index=False)
+stats_masked.to_excel(f'{output}/{clip}{augmentations}results_rmse_stats_masked.xlsx', index=False)

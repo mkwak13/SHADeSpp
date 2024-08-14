@@ -445,7 +445,7 @@ class Trainer:
             #         pil_img.save(f'image2_{i}.png')
                 
             loss_reflec += (torch.abs(outputs[("reflectance",0,0)] - outputs[("reflectance_warp", 0, frame_id)]).mean(1, True) * mask).sum() / mask.sum()
-            loss_reprojection += (self.compute_reprojection_loss(inputs[("color_aug", 0, 0)], outputs[("reprojection_color_warp", 0, frame_id)]) * mask).sum() / mask.sum()
+            loss_reprojection += (self.compute_reprojection_loss(inputs[(inpaint+"color_aug", 0, 0)], outputs[("reprojection_color_warp", 0, frame_id)]) * mask).sum() / mask.sum()
             
         disp = outputs[("disp", 0)]
         if self.opt.input_mask_path is not None:
