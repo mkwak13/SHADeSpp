@@ -36,6 +36,34 @@ dist_pre = "" if distorted else "un"
 
 clip = "notclipped" if not clipped else ""
 
+
+# # cecum only
+# videos_to_include = ["cecum_t1_a",
+#                     "cecum_t1_b",
+#                     "cecum_t2_a",
+#                     "cecum_t2_b",
+#                     "cecum_t2_c",
+#                     "cecum_t3_a",
+#                     "cecum_t4_a",
+#                     "cecum_t4_b"]
+
+# # others
+# videos_to_include = ["desc_t4_a",
+#                     "sigmoid_t1_a",
+#                     "sigmoid_t2_a",
+#                     "sigmoid_t3_a",
+#                     "sigmoid_t3_b",
+#                     "trans_t1_a",
+#                     "trans_t1_b",
+#                     "trans_t2_a",
+#                     "trans_t2_b",
+#                     "trans_t2_c",
+#                     "trans_t3_a",
+#                     "trans_t3_b",
+#                     "trans_t4_a",
+#                     "trans_t4_b"]
+
+# LightDepth videos used
 videos_to_include = ["cecum_t1_a", "cecum_t2_a", "cecum_t3_a",
                      "sigmoid_t3_a", "desc_t4_a",
                      "transc_t2_a", "transc_t3_a", "transc_t4_a"
