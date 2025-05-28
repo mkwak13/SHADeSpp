@@ -1,0 +1,16 @@
+{
+    "model_name": "finetuned_mono_hkfull_288_pseudo_dsms_automasking_noadjust",
+    "data_path": "<data_path>",
+    "log_dir": "<log_dir>",
+    "load_weights_folder": "<load_init_IID_weights_folder>",
+    "models_to_load": ["encoder", "depth", "pose", "pose_encoder"],
+    "split": "hk",
+    "dataset": "hk",
+    "height": 288,
+    "width": 288,
+    "png": true,
+    "aug_type": "",
+    "inpaint_pseudo_gt_dir": "<inpainted_data_path>",
+    "automasking": true,
+    "noadjust": true
+}

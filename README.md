@@ -1,65 +1,61 @@
-# IID_SfmLearner
+# SHADeS
 This is the official PyTorch implementation for training and testing depth estimation models using the method described in
-> [**Image Intrinsic-Based Unsupervised Monocular Depth Estimation in Endoscopy**](https://ieeexplore.ieee.org/document/10530343)
+> [**SHADeS: self-supervised monocular depth estimation through non-Lambertian image decomposition**](https://rdcu.be/eob6R)
 
-> Bojian Li, Bo Liu, Miao Zhu, Xiaoyan Luo and Fugen Zhou
+> Rema Daher, Francisco Vasconcelos and Danail Stoyanov 
 
-**Overview**
-![image](https://github.com/bobo909/IID-SfmLearner/blob/main/figure/overview.png)
+## Overview 
+![image](figure/flowchart.png)
 ## 📄 Citation
 If you find our work useful in your research please consider citing our paper:
 ```
-@article{Li2024Image,
-  author={Li, Bojian and Liu, Bo and Zhu, Miao and Luo, Xiaoyan and Zhou, Fugen},
-  journal={IEEE Journal of Biomedical and Health Informatics}, 
-  title={Image Intrinsic-Based Unsupervised Monocular Depth Estimation in Endoscopy}, 
-  year={2024},
-  volume={},
-  number={},
-  pages={1-11},
-  doi={10.1109/JBHI.2024.3400804}}
+@article{daher2025shades,
+  title={SHADeS: self-supervised monocular depth estimation through non-Lambertian image decomposition},
+  author={Daher, Rema and Vasconcelos, Francisco and Stoyanov, Danail},
+  journal={International Journal of Computer Assisted Radiology and Surgery},
+  pages={1--9},
+  year={2025},
+  publisher={Springer}
+}
 ```
-
-## ⚙️ Setup
-We ran our experiments with PyTorch 1.11.0, CUDA 11.2, Python 3.8.13 and Ubuntu 18.04.
 
 ## 💾 Datasets
-You can download the [Endovis or SCARED dataset](https://endovissub2019-scared.grand-challenge.org/) by signing the challenge rules and emailing them to [max.allan@intusurg.com](mailto:max.allan@intusurg.com),  you can download the Hamlyn dataset from this [website](http://hamlyn.doc.ic.ac.uk/vision/).
+For the Dataset setup, refer to [prepare_data/README.md](prepare_data/README.md).
 
-**Endovis split**
 
-The train/test/validation split for Endovis dataset used in our works is defined in the  `splits/endovis`  folder.
+### Split
+The train/test/validation split for C3VD and Hyper Kvasir dataset used in our works is defined in the  [splits](splits) folder. We train our model on Hyper Kvasir and test on both C3VD and Hyper Kvasir datasets. 
 
-**Data structure**
+## 🖼️ Inference & Evaluation
+You can download our [pretrained models](https://liveuclac-my.sharepoint.com/my?id=%2Fpersonal%2Fucabrd0%5Fucl%5Fac%5Fuk%2FDocuments%2FPretrainedModel%2DEndoSTTN%2FSHADeS%2FModels&ga=1).
 
-The directory of dataset structure is shown as follows:
 ```
-/path/to/endovis_data/
-  dataset1/
-    keyframe1/
-      left_img/
-          000001.png
+python test_simple.py --image_path <your_image_or_folder_path> --model_name <depth_model_name> --method <method_name> --model_basepath <depth_model_base_path> --output_path <path_to_save_results> --eval --seq all --maxing --save_depth
+
+
 ```
-## 🖼️ Prediction for a single image
-You can download our [depth model](https://drive.google.com/drive/folders/1vOIJc78UGV2bsbUqbHeXnUpTvsz33p1U?usp=drive_link) and predict scaled disparity for a single image or a folder of images with:
-```
-python test_simple.py --image_path <your_image_or_folder_path> --model_path <depth_model_path> --output_path <path to save results>
-```
+- `<method_name>` can be `monovit`, `monodepth2`, or `IID` for MonoViT, Monodepth2, and SHADeS respectively. When using MonoViT or Monodepth2, set `--max_depth` to 100.
+
+- If testing on MonoViT, pLease download the ImageNet-1K pretrained MPViT [model](https://dl.dropbox.com/s/y3dnmmy8h4npz7a/mpvit_small.pth) to `./ckpt/`.
+
+- For Hyper Kvasir dataset, use add `--split_path` splits/hk/test_files.txt.
+
+- Add `--decompose` to decompose the images into albedo and shading.
+
+
+### Additional scripts
+We also include some helpful scripts to get tables with: scores, depth figures, decomposition figures, specular masks, or reconstruction figures for different methods. They should be edited to set the correct paths and method names. You can find these scripts in the [scripts](scripts) folder.
+
 
 ## ⏳ Training
+For initializing the model, you can use the pretrained weights of [IID-SfmLearner](https://github.com/bobo909/IID-SfmLearner). However, they only provide `depth.pth` and `encoder.pth`. Thus, use the `pose.pth` and `pose_encoder.pth` from [Monodepth2 mono_640x192 model](https://github.com/nianticlabs/monodepth2). After downloading the pretrained weights, you can set their directory in the configuration file. We provide a sample configuration file in [configs](configs). You can modify the parameters in this file according to your needs.
+
 You can train a model by running the following command:
 ```
-python train.py --data_path <your_data_path> --log_dir <path_to_save_model>
-```
-## 📊 Evaluation
-To prepare the ground truth depth maps run:
-```
-python export_gt_depth.py --data_path <your_data_path> --split <your_dataset_type>
-```
-You can evaluate a model by running the following command:
-```
-python evaluate_depth.py --data_path <your_data_path> --load_weights_folder <your_model_path> --eval_split <your_dataset_type>
+python train.py --config <config_file_path> 
 ```
 
+
+
 ## ✏️Acknowledgement
-Our code is based on the implementation of [AF-SfMLearner](https://github.com/ShuweiShao/AF-SfMLearner). We thank these authors for their excellent work and repository.
+Our code is based on the implementation of [IID-SfmLearner](https://github.com/bobo909/IID-SfmLearner), [AF-SfMLearner](https://github.com/ShuweiShao/AF-SfMLearner), [Monodepth2](https://github.com/nianticlabs/monodepth2) and [MonoViT](https://github.com/zxcqlf/MonoViT). We thank these authors for their excellent work and repository.

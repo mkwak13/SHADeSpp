@@ -100,7 +100,7 @@ def load_model(depth_decoder_path, method, model_name, device, decompose=False):
         else:
             return load_monovit_model_lr()
 
-def spec_score_func(image, binary_mask):
+def spec_score_func(image, binary_mask, image_path):
     # Ensure binary_mask is of type uint8
     binary_mask = binary_mask.astype(np.uint8)
     
@@ -163,11 +163,11 @@ def spec_score_func(image, binary_mask):
 
     # Report the results
     if len(close_blobs) == 0:
-        return 0
+        return image_path, 0
     else:
         percentage_close = sum(close_blobs) / len(close_blobs) * 100
         # print(f"Percentage of blobs close to their surroundings: {percentage_close:.2f}%")
-        return percentage_close
+        return image_path, percentage_close
 
 
 
@@ -400,11 +400,11 @@ def test_simple(args, seq):
                     else:
                         adjusted_image_path = image_path
                     # spec mask
-                    spec_mask = pil.open(adjusted_image_path.replace("Dataset", "Annotations_Dilated"))
+                    spec_mask = pil.open(adjusted_image_path.replace("Dataset", "Annotations_Dilated").replace("Inpainted_HKgen9","Annotations_Dilated"))
                     spec_mask = spec_mask.convert('L')
                     spec_mask = spec_mask.point( lambda p: 255 if p > 200 else 0 )
                     spec_mask = np.array(spec_mask.convert('1'))
-                    scores.append(spec_score_func(pred_depth_raw, spec_mask))
+                    scores.append(spec_score_func(pred_depth_raw, spec_mask, image_path))
                     
                     
             if args.method == "IID" and args.decompose:
@@ -425,12 +425,12 @@ def test_simple(args, seq):
                     adjusted_image_path = image_path.replace("AddedSpec", "Dataset")
                 else:
                     adjusted_image_path = image_path
-                tiff_gt_depth = pil.open(adjusted_image_path.replace("color", "depth").replace("png", "tiff"))
+                tiff_gt_depth = pil.open(adjusted_image_path.replace("color", "depth").replace("Inpainted_HKgen9","Dataset").replace("png", "tiff"))
                 gt_depth = np.array(tiff_gt_depth, dtype=np.float32)
                 
                 
                 # spec mask
-                spec_mask = pil.open(adjusted_image_path.replace("Dataset", "Annotations_Dilated"))
+                spec_mask = pil.open(adjusted_image_path.replace("Dataset", "Annotations_Dilated").replace("Inpainted_HKgen9","Annotations_Dilated"))
                 spec_mask = spec_mask.convert('L')
                 spec_mask = spec_mask.point( lambda p: 255 if p > 200 else 0 )
                 spec_mask = np.array(spec_mask.convert('1'))
@@ -529,25 +529,27 @@ if __name__ == '__main__':
         
         if args.eval and args.save_depth:
             score = "specscore_"
-            cols = ['video', 'path', "mAE", "medAE", "rmse", "rmse_log", "abs_rel", "sq_rel", "a1", "a2", "a3", '__']
+            cols = ['video', 'path', 'SSM', '__']
         else:
             score = ""
             cols = ['video', 'path', "mAE", "medAE", "rmse", "rmse_log", "abs_rel", "sq_rel", "a1", "a2", "a3",  "mAE_masked", "medAE_masked", "rmse_masked", "rmse_log_masked", "abs_rel_masked", "sq_rel_masked", "a1_masked", "a2_masked", "a3_masked"]
     
     args.type_data = ""
+    if "Inpainted_HKgen9" in args.image_path:
+        args.type_data = "inpainted"
     # Check if args.seq is set to 'all'
     if os.path.isdir(args.image_path) and args.seq == ['all']:
         # List all folders in args.image_path
         sequences = sorted([folder for folder in os.listdir(args.image_path) if os.path.isdir(os.path.join(args.image_path, folder))])
     elif os.path.isdir(args.image_path):
         sequences = args.seq
-    elif os.path.isfile(args.image_path) and args.image_path.endswith('.txt'):
-        if args.image_path.endswith('inpainted.txt'):
+    elif os.path.isfile(args.split_path) and args.split_path.endswith('.txt'):
+        if args.split_path.endswith('inpainted.txt'):
             args.type_data = "hkinpainted"
         else:
             args.type_data = "hk"
         # Read list of image directories:
-        with open(args.image_path) as f:
+        with open(args.split_path) as f:
             images = f.read().splitlines()
         # Extract unique last folder names directly
         sequences = sorted(list({os.path.basename(os.path.normpath(os.path.split(path)[0])) for path in images}))
@@ -559,21 +561,24 @@ if __name__ == '__main__':
         
     for seq in sequences:
         errors, errors_masked = test_simple(args, seq)
-        seq_list = [seq]*(len(errors))
-        # save results to csv using unique_dirs
-        
-
-        # Create DataFrames from the errors and errors_masked lists
-        df_errors = pd.DataFrame(errors)
-        df_errors_masked = pd.DataFrame(errors_masked)
-
-        # Merge the DataFrames on the image_path column
-        df_merged = pd.merge(df_errors, df_errors_masked,  on=df_errors.columns[0])
-
-        # Insert the sequence name column at the first position
-        df_merged.insert(0, 'sequence_name', seq_list)
-
         if args.eval:
+            seq_list = [seq]*(len(errors))
+            # save results to csv using unique_dirs
+            
+
+            # Create DataFrames from the errors and errors_masked lists
+            df_errors = pd.DataFrame(errors)
+            df_errors_masked = pd.DataFrame(errors_masked)
+
+            # Merge the DataFrames on the image_path column
+            if errors_masked != None:
+                df_merged = pd.merge(df_errors, df_errors_masked,  on=df_errors.columns[0])
+            else:
+                df_merged = df_errors
+
+            # Insert the sequence name column at the first position
+            df_merged.insert(0, 'sequence_name', seq_list)
+
             writer.writerows(df_merged.itertuples(index=False, name=None))
 
     if args.eval:

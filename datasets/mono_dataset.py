@@ -193,8 +193,11 @@ class MonoDataset(data.Dataset):
 
         line = self.filenames[index].split()
         if len(line) == 1:
-            folder = os.path.dirname(line[0])
-            
+            if self.data_path not in line[0]:
+                folder = os.path.join(self.datapath,os.path.dirname(line[0]))
+            else:
+                folder = os.path.dirname(line[0])
+                
             # Extract the filename from the path
             filename = os.path.basename(line[0]).split(".")[0]
 
