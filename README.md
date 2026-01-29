@@ -40,7 +40,7 @@ For the Dataset setup, refer to [prepare_data/README.md](prepare_data/README.md)
 The train/test/validation split for C3VD and Hyper Kvasir dataset used in our works is defined in the  [splits](splits) folder. We train our model on Hyper Kvasir and test on both C3VD and Hyper Kvasir datasets. 
 
 ## 🖼️ Inference & Evaluation
-You can download our [pretrained models](https://liveuclac-my.sharepoint.com/my?id=%2Fpersonal%2Fucabrd0%5Fucl%5Fac%5Fuk%2FDocuments%2FPretrainedModel%2DEndoSTTN%2FSHADeS%2FModels&ga=1).
+You can download our [pretrained models](https://liveuclac-my.sharepoint.com/:f:/g/personal/ucabrd0_ucl_ac_uk/IgBp07malCOeQIPnfodJWV0PAfRSFsRujDNb5en-0B363ls).
 
 
 For C3VD dataset:
