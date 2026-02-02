@@ -508,7 +508,7 @@ class Trainer:
         loss_reprojection = 0
         loss_disp_smooth = 0
         loss_reconstruction = 0
-        tau = 0.05
+        tau = self.opt.tau
         inpaint = "inpaint_" if self.opt.inpaint_pseudo_gt_dir is not None else ""
 
         # new reconstruction loss
