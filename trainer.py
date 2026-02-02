@@ -23,8 +23,16 @@ random.seed(42)
 
 class Trainer:
     def __init__(self, options):
+
+
         self.opt = options
         self.log_path = os.path.join(self.opt.log_dir, self.opt.model_name)
+
+        # normalize data_path once
+        if isinstance(self.opt.data_path, str):
+            self.opt.data_path = [os.path.abspath(self.opt.data_path)]
+        else:
+            self.opt.data_path = [os.path.abspath(p) for p in self.opt.data_path]
 
         # checking height and width are multiples of 32
         assert self.opt.height % 32 == 0, "'height' must be a multiple of 32"
@@ -108,14 +116,12 @@ class Trainer:
         val_filenames =[]
         train_filenames = []
         for i, split in enumerate(self.opt.split):
-            data_path = self.opt.data_path
+            #data_path = os.path.abspath(self.opt.data_path)
             if split == "hk" or split == "c3vd":
                 aug = self.opt.aug_type
                 if not os.path.exists(fpath[i].format(f"train{aug}")):
                     
-                    if not isinstance(data_path, list):
-                        data_path = [data_path]
-                    
+                    data_path = self.opt.data_path
                     train_filenames, test_filenames, val_filenames = self.generate_train_test_val(split, data_path, img_ext)
                     
                     # Extract the directory from the file path pattern
@@ -243,8 +249,8 @@ class Trainer:
             for dp in data_path:
                 test_seq = ["cecum_t2_b", "trans_t4_a", "sigmoid_t3_a"]
                 train_seq = ["cecum_t1_a", "cecum_t1_b", "cecum_t2_a", "cecum_t2_c",
-                            "cecum_t3_a", "cecum_t4_a", "cecum_t4_b", "desc_t4_a",
-                            "sigmoid_t1_a", "sigmoid_t2_a", "sigmoid_t3_b", "trans_t1_a",
+                            "cecum_t4_a", "cecum_t4_b", "desc_t4_a",
+                            "sigmoid_t1_a", "sigmoid_t3_b", "trans_t1_a",
                             "trans_t1_b", "trans_t2_a", "trans_t2_b", "trans_t2_c",
                             "trans_t3_a", "trans_t3_b", "trans_t4_b"]
                 val_seq = [
