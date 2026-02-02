@@ -88,6 +88,9 @@ class Trainer:
 
         if self.opt.load_weights_folder is not None:
             self.load_model()
+        
+        if not isinstance(self.opt.data_path, list):
+            self.opt.data_path = [self.opt.data_path]
 
         print("Training model named:\n  ", self.opt.model_name)
         print("Models and tensorboard events files are saved to:\n  ", self.opt.log_dir)
@@ -216,6 +219,8 @@ class Trainer:
 
 
     def generate_train_test_val(self, data_path, img_ext):
+        if not isinstance(data_path, list):
+            data_path = [data_path]
         if "hk" in self.opt.split:
             traintestval = []
             for data_path in data_path:
@@ -237,22 +242,22 @@ class Trainer:
             test_filenames = []
             val_filenames = []
             
-            for data_path in self.opt.data_path:
-                test_seq = ["cecum_t2_b", "trans_t4_a", "sigmoid_t3_a"]
-                train_seq = ["cecum_t1_a", "cecum_t1_b", "cecum_t2_a", "cecum_t2_c",
-                            "cecum_t4_a", "cecum_t4_b", "desc_t4_a",
-                            "sigmoid_t1_a", "sigmoid_t3_b", "trans_t1_a",
-                            "trans_t1_b", "trans_t2_a", "trans_t2_b", "trans_t2_c",
-                            "trans_t3_a", "trans_t3_b", "trans_t4_b"]
-                val_seq = [
-                    "cecum_t3_a",
-                    "sigmoid_t2_a"
-                ]
-                
-                # Extend the lists with filenames from the current data_path
-                train_filenames.extend(list(chain.from_iterable([sorted(glob.glob(os.path.join(data_path, seq, f"*{img_ext}")))[1:-1] for seq in train_seq])))
-                test_filenames.extend(list(chain.from_iterable([sorted(glob.glob(os.path.join(data_path, seq, f"*{img_ext}")))[1:-1] for seq in test_seq])))
-                val_filenames.extend(list(chain.from_iterable([sorted(glob.glob(os.path.join(data_path, seq, f"*{img_ext}")))[1:-1] for seq in val_seq])))
+            test_seq = ["cecum_t2_b", "trans_t4_a", "sigmoid_t3_a"]
+            train_seq = ["cecum_t1_a", "cecum_t1_b", "cecum_t2_a", "cecum_t2_c",
+                        "cecum_t4_a", "cecum_t4_b", "desc_t4_a",
+                        "sigmoid_t1_a", "sigmoid_t3_b", "trans_t1_a",
+                        "trans_t1_b", "trans_t2_a", "trans_t2_b", "trans_t2_c",
+                        "trans_t3_a", "trans_t3_b", "trans_t4_b"]
+            val_seq = [
+                "cecum_t3_a",
+                "sigmoid_t2_a"
+            ]
+            
+            # Extend the lists with filenames from the current data_path
+            for dp in data_path:
+                train_filenames.extend(list(chain.from_iterable([sorted(glob.glob(os.path.join(dp, seq, f"*{img_ext}")))[1:-1] for seq in train_seq])))
+                test_filenames.extend(list(chain.from_iterable([sorted(glob.glob(os.path.join(dp, seq, f"*{img_ext}")))[1:-1] for seq in test_seq])))
+                val_filenames.extend(list(chain.from_iterable([sorted(glob.glob(os.path.join(dp, seq, f"*{img_ext}")))[1:-1] for seq in val_seq])))
             
             return train_filenames, test_filenames, val_filenames
             
