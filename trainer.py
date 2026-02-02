@@ -657,9 +657,11 @@ class Trainer:
                 writer.add_image(
                         "Specular_I-AS/{}".format(j),
                         outputs[("specular_color", 0, 0)][j].data, self.step)
-                writer.add_image(
-                        "Specular_Iinp-AS/{}".format(j),
-                        outputs[("specular_color_pseudo", 0, 0)][j].data, self.step)
+                # no longer handling pseudo GT
+                if ("specular_color_pseudo", 0, 0) in outputs:
+                    writer.add_image(
+                            "Specular_Iinp-AS/{}".format(j),
+                            outputs[("specular_color_pseudo", 0, 0)][j].data, self.step)
                 writer.add_image(
                         "input_1/{}".format(j),
                         inputs[("color", 1, 0)][j].data, self.step)
