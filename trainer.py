@@ -145,7 +145,10 @@ class Trainer:
             else:
                 train_filenames.extend(readlines(fpath[i].format("train")))
                 val_filenames.extend(readlines(fpath[i].format("val")))
-            
+
+
+        print("train files:", len(train_filenames))
+        print("val files:", len(val_filenames))   
         
         if self.opt.input_mask_path is not None:
             input_mask_pil = Image.open(self.opt.input_mask_path).convert('1').filter(ImageFilter.MinFilter(size=5))
