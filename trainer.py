@@ -167,13 +167,13 @@ class Trainer:
 
         if self.opt.dataset == "hk" or self.opt.dataset == "c3vd":
             train_dataset = self.dataset(
-                self.opt.data_path, train_filenames, self.opt.height, self.opt.width,
+                self.opt.data_path[0], train_filenames, self.opt.height, self.opt.width,
                 self.opt.frame_ids, 4, is_train=True, img_ext=img_ext, 
                 flipping=self.opt.flipping, rotating=self.opt.rotating,
                 distorted = self.opt.distorted, inpaint_pseudo_gt_dir = self.opt.inpaint_pseudo_gt_dir)
         else:
             train_dataset = self.dataset(
-                self.opt.data_path, train_filenames, self.opt.height, self.opt.width,
+                self.opt.data_path[0], train_filenames, self.opt.height, self.opt.width,
                 self.opt.frame_ids, 4, is_train=True, img_ext=img_ext)
             
         self.train_loader = DataLoader(
