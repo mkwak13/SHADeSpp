@@ -261,7 +261,8 @@ def test_simple(args, seq):
         print("Warning: The --pred_metric_depth flag only makes sense for stereo-trained KITTI "
               "models. For mono-trained models, output depths will not in metric space.")
 
-    download_model_if_doesnt_exist(args.model_basepath, args.model_name, args.method)
+    # deactivate to check training
+    #download_model_if_doesnt_exist(args.model_basepath, args.model_name, args.method)
     model_path = os.path.join(args.model_basepath, args.method , args.model_name)
 
 
