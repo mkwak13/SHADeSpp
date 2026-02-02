@@ -242,11 +242,13 @@ class MonoDataset(data.Dataset):
 
         min_idx, max_idx = self.frame_range_cache[folder]
 
-        if frame_index + max(self.frame_idxs) > max_idx:
-            raise IndexError
+        min_allowed = min_idx - min(self.frame_idxs)
+        max_allowed = max_idx - max(self.frame_idxs)
 
-        if frame_index + min(self.frame_idxs) < min_idx:
-            raise IndexError
+        if frame_index < min_allowed:
+            frame_index = min_allowed
+        elif frame_index > max_allowed:
+            frame_index = max_allowed
 
         for i in self.frame_idxs:
             if isinstance(self.inpaint_pseudo_gt_dir, list):
