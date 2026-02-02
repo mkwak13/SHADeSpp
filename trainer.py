@@ -237,7 +237,7 @@ class Trainer:
             test_filenames = []
             val_filenames = []
             
-            for dp in self.opt.data_path:
+            for dp in data_path:
                 test_seq = ["cecum_t2_b", "trans_t4_a", "sigmoid_t3_a"]
                 train_seq = ["cecum_t1_a", "cecum_t1_b", "cecum_t2_a", "cecum_t2_c",
                             "cecum_t3_a", "cecum_t4_a", "cecum_t4_b", "desc_t4_a",
