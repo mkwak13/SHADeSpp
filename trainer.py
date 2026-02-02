@@ -216,7 +216,7 @@ class Trainer:
 
 
     def generate_train_test_val(self, data_path, img_ext):
-        if self.opt.split == "hk":
+        if "hk" in self.opt.split:
             traintestval = []
             for data_path in self.opt.data_path:
                 contents_lists = glob.glob(os.path.join(data_path, "*"))
@@ -231,7 +231,7 @@ class Trainer:
             test_filenames = list(chain.from_iterable([traintestval[i][1] for i in range(len(traintestval))]))
             val_filenames = list(chain.from_iterable([traintestval[i][2] for i in range(len(traintestval))]))
             return train_filenames, test_filenames, val_filenames
-        if self.opt.split == "c3vd":
+        if "c3vd" in self.opt.split:
             # Initialize empty lists to accumulate filenames
             train_filenames = []
             test_filenames = []
@@ -240,8 +240,8 @@ class Trainer:
             for data_path in self.opt.data_path:
                 test_seq = ["cecum_t2_b", "trans_t4_a", "sigmoid_t3_a"]
                 train_seq = ["cecum_t1_a", "cecum_t1_b", "cecum_t2_a", "cecum_t2_c",
-                            "cecum_t3_a", "cecum_t4_a", "cecum_t4_b", "desc_t4_a",
-                            "sigmoid_t1_a", "sigmoid_t2_a", "sigmoid_t3_b", "trans_t1_a",
+                            "cecum_t4_a", "cecum_t4_b", "desc_t4_a",
+                            "sigmoid_t1_a", "sigmoid_t3_b", "trans_t1_a",
                             "trans_t1_b", "trans_t2_a", "trans_t2_b", "trans_t2_c",
                             "trans_t3_a", "trans_t3_b", "trans_t4_b"]
                 val_seq = [
