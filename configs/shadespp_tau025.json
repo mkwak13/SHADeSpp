@@ -1,5 +1,5 @@
 {
-  "model_name": "v_tau015",
+  "model_name": "v_tau025",
   "log_dir": "models/shadespp",
   "tau": 0.25,
 
