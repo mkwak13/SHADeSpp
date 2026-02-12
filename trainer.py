@@ -538,9 +538,9 @@ class Trainer:
             residual = torch.abs(gray_input - gray_reproj)
 
             # local contrast
-            local_mean = F.avg_pool2d(gray_input, kernel_size=7, stride=1, padding=3)
+            local_mean = F.avg_pool2d(gray_input, 7, 1, 3)
 
-            contrast = gray_input / (local_mean + 1e-6)
+            contrast = (gray_input / (local_mean + 1e-6)).detach()
 
             # contrast-aware spec
             spec = residual * contrast
