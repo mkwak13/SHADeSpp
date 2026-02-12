@@ -83,7 +83,7 @@ def evaluate(opt):
                                     pin_memory=True, drop_last=False)
         elif opt.eval_split=="c3vd":
             dataset = datasets.C3VDDataset(
-                opt.data_path,
+                opt.data_path[0] if isinstance(opt.data_path, list) else opt.data_path,
                 filenames,
                 encoder_dict['height'],
                 encoder_dict['width'],
