@@ -608,7 +608,7 @@ class Trainer:
         total_loss = (self.opt.reprojection_constraint*loss_reprojection / 2.0 + 
                       self.opt.reflec_constraint*(loss_reflec / 2.0) + 
                       self.opt.disparity_smoothness*loss_disp_smooth + 
-                      self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
+                      #self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
                       self.opt.disparity_spatial_constraint*loss_disp_spatial)
 
         M0 = torch.clamp(outputs[("specular_color", 0, 0)] / tau, 0.0, 1.0)
