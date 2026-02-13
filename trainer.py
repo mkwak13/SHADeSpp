@@ -555,9 +555,7 @@ class Trainer:
             raw = inputs[("color_aug", frame_id, 0)]
             pred = outputs[("reprojection_color", 0, frame_id)]
 
-            loss_reconstruction += ((1 - M_soft) * self.compute_reprojection_loss(raw, pred)).mean()
-
-
+            loss_reconstruction += self.compute_reprojection_loss(raw, pred).mean()
 
 
         for frame_id in self.opt.frame_ids[1:]: 
@@ -574,10 +572,7 @@ class Trainer:
             )
 
 
-            reprojection_loss_item = (
-                (1 - M_soft) *
-                self.compute_reprojection_loss(raw, pred)
-            )
+            reprojection_loss_item = self.compute_reprojection_loss(raw, pred)
 
 
             if self.opt.automasking:
@@ -588,7 +583,7 @@ class Trainer:
                 mask_comb = mask * mask_idt
                 outputs["identity_selection"] = mask_comb.clone()
 
-            weighted_mask = mask_comb * (1 - M_soft)
+            weighted_mask = mask_comb
 
             loss_reflec += (
                 reflec_loss_item * weighted_mask
@@ -617,6 +612,24 @@ class Trainer:
                       self.opt.disparity_smoothness*loss_disp_smooth + 
                       self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
                       self.opt.disparity_spatial_constraint*loss_disp_spatial)
+        
+
+        loss_spec_suppression = 0
+
+        for frame_id in self.opt.frame_ids:
+            raw = inputs[("color_aug", frame_id, 0)]
+            R = outputs[("reflectance", 0, frame_id)]
+
+            M_soft = torch.clamp(
+                outputs[("specular_color", frame_id, 0)].mean(1, keepdim=True).detach() / tau,
+                0.0, 1.0
+            )
+
+            loss_spec_suppression += (
+                M_soft * torch.abs(R - raw)
+            ).mean()
+
+        total_loss += 0.2 * loss_spec_suppression
 
 
         M0 = torch.clamp(outputs[("specular_color", 0, 0)] / tau, 0.0, 1.0)
