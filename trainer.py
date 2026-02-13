@@ -558,6 +558,8 @@ class Trainer:
             loss_reconstruction += ((1 - M_soft) * self.compute_reprojection_loss(raw, pred)).mean()
 
 
+
+
         for frame_id in self.opt.frame_ids[1:]: 
             mask = outputs[("valid_mask", 0, frame_id)]
             mask_comb = mask.clone()
@@ -615,7 +617,6 @@ class Trainer:
                       self.opt.disparity_smoothness*loss_disp_smooth + 
                       self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
                       self.opt.disparity_spatial_constraint*loss_disp_spatial)
-    
 
 
         M0 = torch.clamp(outputs[("specular_color", 0, 0)] / tau, 0.0, 1.0)
