@@ -38,8 +38,8 @@ class Trainer:
         assert self.opt.height % 32 == 0, "'height' must be a multiple of 32"
         assert self.opt.width % 32 == 0, "'width' must be a multiple of 32"
 
-        self.models = {}  # 字典
-        self.parameters_to_train = []  # 列表
+        self.models = {}  # ??
+        self.parameters_to_train = []  # ??
         self.parameters_to_train_1 = []
 
         self.device = torch.device("cpu" if self.opt.no_cuda else "cuda")
@@ -64,7 +64,7 @@ class Trainer:
             self.opt.num_layers, self.opt.weights_init == "pretrained")  # 18
         self.models["decompose_encoder"].to(self.device)
         self.parameters_to_train += list(self.models["decompose_encoder"].parameters())
-        
+
         self.models["decompose"] = networks.decompose_decoder(
             self.models["decompose_encoder"].num_ch_enc, self.opt.scales)
         self.models["decompose"].to(self.device)
@@ -109,10 +109,10 @@ class Trainer:
 
         if not isinstance(self.opt.split, list):
             self.opt.split = [self.opt.split]
-            
+
         fpath = [os.path.join(os.path.dirname(__file__), "splits", split, "{}_files.txt") for split in self.opt.split]        
         img_ext = '.png' if self.opt.png else '.jpg'
-        
+
         val_filenames =[]
         train_filenames = []
         for i, split in enumerate(self.opt.split):
@@ -120,16 +120,16 @@ class Trainer:
             if split == "hk" or split == "c3vd":
                 aug = self.opt.aug_type
                 if not os.path.exists(fpath[i].format(f"train{aug}")):
-                    
+
                     data_path = self.opt.data_path
                     train_filenames, test_filenames, val_filenames = self.generate_train_test_val(split, data_path, img_ext)
-                    
+
                     # Extract the directory from the file path pattern
                     directory = os.path.dirname(fpath[i])
 
                     # Ensure the directory exists
                     os.makedirs(directory, exist_ok=True)
-                    
+
                     # Save train_filenames to a text file
                     with open(fpath[i].format(f"train{aug}"), 'w') as f:
                         for filename in train_filenames:
@@ -147,7 +147,7 @@ class Trainer:
                 else:
                     train_filenames.extend(readlines(fpath[i].format(f"train{aug}")))
                     val_filenames.extend(readlines(fpath[i].format(f"val{aug}")))
-                
+
             else:
                 train_filenames.extend(readlines(fpath[i].format("train")))
                 val_filenames.extend(readlines(fpath[i].format("val")))
@@ -155,13 +155,13 @@ class Trainer:
 
         print("train files:", len(train_filenames))
         print("val files:", len(val_filenames))   
-        
+
         if self.opt.input_mask_path is not None:
             input_mask_pil = Image.open(self.opt.input_mask_path).convert('1').filter(ImageFilter.MinFilter(size=5))
             self.input_mask = transforms.ToTensor()(input_mask_pil).to(self.device).unsqueeze(dim=0)
         else:
             self.input_mask = None
-                
+
         num_train_samples = len(train_filenames)
         self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epochs
 
@@ -175,11 +175,11 @@ class Trainer:
             train_dataset = self.dataset(
                 self.opt.data_path[0], train_filenames, self.opt.height, self.opt.width,
                 self.opt.frame_ids, 4, is_train=True, img_ext=img_ext)
-            
+
         self.train_loader = DataLoader(
             train_dataset, self.opt.batch_size, True,
             num_workers=self.opt.num_workers, pin_memory=True, drop_last=True)
-        
+
         if self.opt.dataset == "hk" or self.opt.dataset == "c3vd":
             val_dataset = self.dataset(
             self.opt.data_path[0], val_filenames, self.opt.height, self.opt.width,
@@ -190,23 +190,23 @@ class Trainer:
             val_dataset = self.dataset(
                 self.opt.data_path[0], val_filenames, self.opt.height, self.opt.width,
                 self.opt.frame_ids, 4, is_train=False, img_ext=img_ext)
-            
+
         self.val_loader = DataLoader(
             val_dataset, self.opt.batch_size, False,
             num_workers=1, pin_memory=True, drop_last=True)
         self.val_iter = iter(self.val_loader)
-        
+
         self.writers = {}
         for mode in ["train", "val"]:
             self.writers[mode] = SummaryWriter(os.path.join(self.log_path, mode))
 
-        
+
         self.ssim = SSIM()
         self.ssim.to(self.device)
 
         self.backproject_depth = {}
         self.project_3d = {}
-        
+
         for scale in self.opt.scales:
             h = self.opt.height // (2 ** scale)
             w = self.opt.width // (2 ** scale)
@@ -245,7 +245,7 @@ class Trainer:
             train_filenames = []
             test_filenames = []
             val_filenames = []
-            
+
             for dp in data_path:
                 test_seq = ["cecum_t2_b", "trans_t4_a", "sigmoid_t3_a"]
                 train_seq = ["cecum_t1_a", "cecum_t1_b", "cecum_t2_a", "cecum_t2_c",
@@ -257,15 +257,15 @@ class Trainer:
                     "cecum_t3_a",
                     "sigmoid_t2_a"
                 ]
-                
+
                 # Extend the lists with filenames from the current data_path
                 train_filenames.extend(list(chain.from_iterable([sorted(glob.glob(os.path.join(dp, seq, f"*color{img_ext}")))[1:-1] for seq in train_seq])))
                 test_filenames.extend(list(chain.from_iterable([sorted(glob.glob(os.path.join(dp, seq, f"*color{img_ext}")))[1:-1] for seq in test_seq])))
                 val_filenames.extend(list(chain.from_iterable([sorted(glob.glob(os.path.join(dp, seq, f"*color{img_ext}")))[1:-1] for seq in val_seq])))
-            
+
             return train_filenames, test_filenames, val_filenames
-            
-    
+
+
     def set_train(self):
         """Convert all models to training mode
         """
@@ -306,7 +306,7 @@ class Trainer:
         self.models["decompose"].eval()
         if not self.opt.noadjust:
             self.models["adjust_net"].eval()
-       
+
 
     def train(self):
         """Run the entire training pipeline
@@ -360,7 +360,7 @@ class Trainer:
         # decompose
         outputs ={}
         self.decompose(inputs,outputs)
-        
+
         # we only feed the image with frame_id 0 through the depth encoder
         if self.opt.light_in_depth:
             features = self.models["encoder"](outputs["light", 0, 0].repeat_interleave(3, dim=1))
@@ -373,7 +373,7 @@ class Trainer:
 
         # decompose
         self.decompose_postprocess(inputs,outputs)
-        
+
         losses = self.compute_losses(inputs, outputs)
 
         return outputs, losses
@@ -383,9 +383,9 @@ class Trainer:
         """
         outputs = {}
         if self.num_pose_frames == 2:
-           
+
             pose_feats = {f_i: inputs["color_aug", f_i, 0] for f_i in self.opt.frame_ids}
-                
+
             for f_i in self.opt.frame_ids[1:]:
 
                 if f_i != "s":
@@ -402,20 +402,20 @@ class Trainer:
                     outputs[("translation", 0, f_i)] = translation
                     outputs[("cam_T_cam", 0, f_i)] = transformation_from_parameters(
                         axisangle[:, 0], translation[:, 0],invert=(f_i < 0))
-         
+
         return outputs
-    
+
     def decompose(self,inputs,outputs):
         for f_i in self.opt.frame_ids:
             decompose_features = self.models["decompose_encoder"](inputs[("color_aug",f_i,0)])
             outputs[("reflectance",0,f_i)],outputs[("light",0,f_i)] = self.models["decompose"](decompose_features)
             outputs[("reprojection_color", 0, f_i)] = outputs[("reflectance", 0, f_i)]*outputs[("light", 0, f_i)]
-            
+
     def decompose_postprocess(self,inputs,outputs):
         disp = outputs[("disp", 0)]
         disp = F.interpolate(disp, [self.opt.height, self.opt.width], mode="bilinear", align_corners=True)
         _, depth = disp_to_depth(disp, self.opt.min_depth, self.opt.max_depth)
-        
+
         for i, frame_id in enumerate(self.opt.frame_ids[1:]):
             T = outputs[("cam_T_cam", 0, frame_id)]
             cam_points = self.backproject_depth[0](
@@ -429,12 +429,12 @@ class Trainer:
                 outputs[("reflectance", 0, frame_id)],
                 outputs[("warp", 0, frame_id)],
                 padding_mode="border",align_corners=True)
-            
+
             outputs[("light_warp", 0, frame_id)] = F.grid_sample(
                 outputs[("light", 0, frame_id)],
                 outputs[("warp", 0, frame_id)],
                 padding_mode="border",align_corners=True)
-            
+
             outputs[("color_warp",0,frame_id)] = F.grid_sample(
                 inputs[("color_aug", frame_id, 0)],
                 outputs[("warp", 0, frame_id)],
@@ -456,7 +456,7 @@ class Trainer:
                 outputs[("reprojection_color_warp", 0, frame_id)] = outputs[("reflectance_warp", 0, frame_id)]*outputs[("light_adjust_warp", 0, frame_id)]
             else:
                 outputs[("reprojection_color_warp", 0, frame_id)] = outputs[("reflectance_warp", 0, frame_id)]*outputs[("light_warp", 0, frame_id)]
-            
+
 
 
 
@@ -475,10 +475,10 @@ class Trainer:
 
 
         batch_size, _, rows, cols = disp_map.shape
-        
+
         # Normalize spatial distances by the maximum possible distance
         max_dist = torch.sqrt(torch.tensor(rows**2 + cols**2, dtype=torch.float32))
-        
+
 
         # Initialize DD_map and SD_map on the same device as disp_map
         DD_map = torch.zeros((batch_size, rows, cols), dtype=disp_map.dtype, device=disp_map.device)
@@ -498,10 +498,10 @@ class Trainer:
         # Compute the loss
         mask = DD_map < threshold
         loss = torch.mean(mask.float() * (SD_map - DD_map) ** 2)
-        
-        
+
+
         return loss
-        
+
     def compute_reprojection_loss(self, pred, target):
 
         abs_diff = torch.abs(target - pred)
@@ -510,7 +510,7 @@ class Trainer:
         reprojection_loss = 0.85 * ssim_loss + 0.15 * l1_loss
 
         return reprojection_loss
-    
+
     #updated method for SHADeS++
     def compute_losses(self, inputs, outputs):
 
@@ -609,7 +609,7 @@ class Trainer:
             loss_disp_spatial = self.proportional_loss_with_threshold(disp, 0.5)
         else:
             loss_disp_spatial = 0
-            
+
         total_loss = (self.opt.reprojection_constraint*loss_reprojection / 2.0 + 
                       self.opt.reflec_constraint*(loss_reflec / 2.0) + 
                       self.opt.disparity_smoothness*loss_disp_smooth + 
@@ -629,7 +629,7 @@ class Trainer:
         losses["loss"] = total_loss
 
         return losses
-    
+
     def val(self):
         """Validate the model on a single minibatch
         """
@@ -714,7 +714,7 @@ class Trainer:
                     writer.add_image(
                             "automask/{}".format(j),
                             outputs["identity_selection"][j].data, self.step)
-                    
+
 
     def save_opts(self):
         """Save options to disk so we know what we ran this experiment with
