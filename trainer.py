@@ -606,11 +606,6 @@ class Trainer:
         norm_disp = disp / (mean_disp + 1e-7)
         loss_disp_smooth = get_smooth_loss(norm_disp, color)
 
-        # light smoothness regularization
-        loss_light_smooth = get_smooth_loss(
-            outputs[("light", 0, 0)],
-            inputs[("color_aug", 0, 0)]
-        )
 
         if self.opt.disparity_spatial_constraint > 0:
             loss_disp_spatial = self.proportional_loss_with_threshold(disp, 0.5)
@@ -622,8 +617,15 @@ class Trainer:
                       self.opt.disparity_smoothness*loss_disp_smooth + 
                       self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
                       self.opt.disparity_spatial_constraint*loss_disp_spatial)
+        
+        # reflectance mean anchor (for scale stablilzation)
+        loss_reflectance_mean = torch.abs(
+            outputs[("reflectance", 0, 0)].mean() -
+            inputs[("color_aug", 0, 0)].mean()
+        )
 
-        total_loss += 0.1 * loss_light_smooth
+        total_loss += 0.5 * loss_reflectance_mean
+
 
         M0 = torch.clamp(outputs[("specular_color", 0, 0)] / tau, 0.0, 1.0)
 
