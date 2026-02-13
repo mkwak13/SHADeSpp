@@ -543,23 +543,19 @@ class Trainer:
             contrast = (gray_input / (local_mean + 1e-6)).detach()
 
             # contrast-aware spec
-            spec = torch.relu(
+            spec = torch.abs(
                 inputs[("color_aug", frame_id, 0)] -
-                outputs[("reflectance", 0, frame_id)]
+                outputs[("reflectance", 0, frame_id)].detach()
             )
 
             outputs[("specular_color", frame_id, 0)] = spec
 
-            M_soft = torch.clamp(spec.mean(1, keepdim=True) / tau, 0, 1)
+            M_soft = torch.clamp(spec.mean(1, keepdim=True).detach() / tau, 0, 1)
 
             raw = inputs[("color_aug", frame_id, 0)]
             pred = outputs[("reprojection_color", 0, frame_id)]
 
             loss_reconstruction += ((1 - M_soft) * self.compute_reprojection_loss(raw, pred)).mean()
-
-            # ?? spec energy regularization
-            loss_reconstruction += 0.1 * spec.mean()
-
 
 
 
