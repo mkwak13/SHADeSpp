@@ -550,7 +550,7 @@ class Trainer:
 
             outputs[("specular_color", frame_id, 0)] = spec
 
-            M_soft = torch.clamp(spec.mean(1, keepdim=True) / tau, 0, 1)
+            M_soft = torch.clamp(spec.mean(1, keepdim=True).detach() / tau, 0, 1)
 
             raw = inputs[("color_aug", frame_id, 0)]
             pred = outputs[("reprojection_color", 0, frame_id)]
@@ -617,14 +617,6 @@ class Trainer:
                       self.opt.disparity_smoothness*loss_disp_smooth + 
                       self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
                       self.opt.disparity_spatial_constraint*loss_disp_spatial)
-        
-        # reflectance mean anchor (for scale stablilzation)
-        loss_reflectance_mean = torch.abs(
-            outputs[("reflectance", 0, 0)].mean() -
-            inputs[("color_aug", 0, 0)].mean()
-        )
-
-        total_loss += 0.5 * loss_reflectance_mean
 
 
         M0 = torch.clamp(outputs[("specular_color", 0, 0)] / tau, 0.0, 1.0)
