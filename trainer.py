@@ -545,7 +545,7 @@ class Trainer:
             # contrast-aware spec
             spec = torch.abs(
                 inputs[("color_aug", frame_id, 0)] -
-                outputs[("reflectance", 0, frame_id)]
+                outputs[("reflectance", 0, frame_id)].detach()
             )
 
             outputs[("specular_color", frame_id, 0)] = spec
@@ -613,7 +613,7 @@ class Trainer:
         total_loss = (self.opt.reprojection_constraint*loss_reprojection / 2.0 + 
                       self.opt.reflec_constraint*(loss_reflec / 2.0) + 
                       self.opt.disparity_smoothness*loss_disp_smooth + 
-                      #self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
+                      self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
                       self.opt.disparity_spatial_constraint*loss_disp_spatial)
 
         M0 = torch.clamp(outputs[("specular_color", 0, 0)] / tau, 0.0, 1.0)
@@ -624,7 +624,7 @@ class Trainer:
             torch.abs(M0[:, :, :-1, :] - M0[:, :, 1:, :]).mean()
         )
 
-        #total_loss += 0.01 * loss_mask_l1 + 0.1 * loss_mask_tv
+        total_loss += 0.01 * loss_mask_l1 + 0.1 * loss_mask_tv
 
         losses["loss"] = total_loss
 
