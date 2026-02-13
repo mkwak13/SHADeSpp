@@ -593,11 +593,11 @@ class Trainer:
 
             loss_reflec += (
                 reflec_loss_item * weighted_mask
-            ).sum() / (weighted_mask.sum() + 1e-6)
+            ).mean()
 
             loss_reprojection += (
                 reprojection_loss_item * mask_comb
-            ).sum() / (mask_comb.sum() + 1e-6)
+            ).mean()
 
 
 
