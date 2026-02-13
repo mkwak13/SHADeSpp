@@ -618,7 +618,10 @@ class Trainer:
                       self.opt.disparity_smoothness*loss_disp_smooth + 
                       self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
                       self.opt.disparity_spatial_constraint*loss_disp_spatial)
-
+        
+        # Direct specular suppression
+        loss_spec_direct = outputs[("specular_color", 0, 0)].mean()
+        total_loss += 0.5 * loss_spec_direct
 
         x0 = outputs[("specular_color", 0, 0)].mean(1, keepdim=True)
         M0 = torch.sigmoid((x0 - tau) * 15.0)
