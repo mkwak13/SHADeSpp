@@ -43,6 +43,8 @@ class decompose_decoder(nn.Module):
 
         self.convs[("decompose_R_conv", 0)] = Conv3x3(self.num_ch_dec[0], self.num_output_R_channels)
         self.convs[("decompose_L_conv", 0)] = nn.Conv2d(self.num_ch_dec[0], self.num_output_L_channels, kernel_size=1)
+        self.convs[("decompose_M_conv", 0)] = nn.Conv2d(self.num_ch_dec[0], 1, kernel_size=1)
+
         
         self.decoder = nn.ModuleList(list(self.convs.values()))
         self.sigmoid=nn.Sigmoid()
@@ -71,6 +73,15 @@ class decompose_decoder(nn.Module):
         x_L=self.convs[("upconv_L",1)](x_L)
 
         self.outputs[("decompose_L")] = self.sigmoid(self.convs[("decompose_L_conv", 0)](x_L))
+
+        self.outputs[("decompose_M")] = self.sigmoid(
+            self.convs[("decompose_M_conv", 0)](x_R)
+        )
         
-        return self.outputs[("decompose_R")],self.outputs[("decompose_L")]
+        return (
+            self.outputs[("decompose_R")],
+            self.outputs[("decompose_L")],
+            self.outputs[("decompose_M")]
+        )
+
         
