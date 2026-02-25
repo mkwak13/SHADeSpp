@@ -621,7 +621,7 @@ class Trainer:
       
         # Direct specular suppression
         loss_spec_direct = outputs[("specular_color", 0, 0)].mean()
-        total_loss += 0.1 * loss_spec_direct
+        total_loss += 0.03 * loss_spec_direct
 
         loss_light_smooth = get_smooth_loss(
             outputs[("light", 0, 0)],
