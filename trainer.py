@@ -556,7 +556,7 @@ class Trainer:
             raw = inputs[("color_aug", frame_id, 0)]
             pred = outputs[("reprojection_color", 0, frame_id)]
 
-            weight = 0.2 + 0.8 * M_soft
+            weight = 1.0 + 0.2 * M_soft
             loss_reconstruction += (weight * self.compute_reprojection_loss(raw, pred)).mean()
 
 
@@ -620,8 +620,8 @@ class Trainer:
                       self.opt.disparity_spatial_constraint*loss_disp_spatial)
       
         # Direct specular suppression
-        loss_spec_direct = outputs[("specular_color", 0, 0)].mean()
-        total_loss += 0.5 * loss_spec_direct
+        # loss_spec_direct = outputs[("specular_color", 0, 0)].mean()
+        # total_loss += 0.5 * loss_spec_direct
 
         x0 = outputs[("specular_color", 0, 0)].mean(1, keepdim=True)
         M0 = torch.sigmoid((x0 - tau) * 15.0)
@@ -632,7 +632,7 @@ class Trainer:
             torch.abs(M0[:, :, :-1, :] - M0[:, :, 1:, :]).mean()
         )
 
-        total_loss += 0.01 * loss_mask_l1 + 0.1 * loss_mask_tv
+        #total_loss += 0.01 * loss_mask_l1 + 0.1 * loss_mask_tv
 
         losses["loss"] = total_loss
 
