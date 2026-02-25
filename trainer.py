@@ -545,7 +545,7 @@ class Trainer:
             # contrast-aware spec
             spec = torch.abs(
                 inputs[("color_aug", frame_id, 0)] -
-                outputs[("reflectance", 0, frame_id)]
+                outputs[("reflectance", 0, frame_id)].detach()
             )
 
             outputs[("specular_color", frame_id, 0)] = spec
