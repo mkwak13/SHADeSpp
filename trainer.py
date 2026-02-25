@@ -558,7 +558,8 @@ class Trainer:
             M_soft = outputs[("mask", 0, 0)]
 
             photo = self.compute_reprojection_loss(raw, pred)
-            reprojection_loss_item = photo * (1 - M_soft)
+            #prevent mask from completely turning off photometric
+            reprojection_loss_item = photo * (1 - 0.7 * M_soft)
 
 
             if self.opt.automasking:
