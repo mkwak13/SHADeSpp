@@ -620,7 +620,7 @@ class Trainer:
             torch.abs(M0[:, :, :-1, :] - M0[:, :, 1:, :]).mean()
         )
 
-        total_loss += 0.015 * loss_mask_l1 + 0.1 * loss_mask_tv
+        total_loss += 0.0075 * loss_mask_l1 + 0.1 * loss_mask_tv
 
         print(
             f"loss_reprojection: {loss_reprojection.item():.6f} | "
