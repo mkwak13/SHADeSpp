@@ -606,7 +606,14 @@ class Trainer:
         M0 = outputs[("mask", 0, 0)]
         raw = inputs[("color_aug", 0, 0)]
 
-        bright_prior = (raw.max(1, keepdim=True)[0] > 0.90).float()
+        light = outputs[("light", 0, 0)]
+        reflectance = outputs[("reflectance", 0, 0)]
+
+        contrast = (light - reflectance).mean(1, keepdim=True)
+
+        bright_values, _ = raw.max(1, keepdim=True)
+
+        bright_prior = ((bright_values > 0.95) & (contrast > 0.3)).float()
 
         loss_mask_bright = ((M0 - bright_prior) ** 2).mean()
         total_loss += 0.1 * loss_mask_bright
