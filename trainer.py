@@ -618,10 +618,6 @@ class Trainer:
                       self.opt.disparity_smoothness*loss_disp_smooth + 
                       self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
                       self.opt.disparity_spatial_constraint*loss_disp_spatial)
-      
-        # specular entropy
-        loss_spec_entropy = - (outputs[("specular_color",0,0)].mean())
-        total_loss += 0.02 * loss_spec_entropy
 
         loss_light_smooth = get_smooth_loss(
             outputs[("light", 0, 0)],
