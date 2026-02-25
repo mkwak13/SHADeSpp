@@ -563,12 +563,12 @@ class Trainer:
             std = photo.std(dim=(2,3), keepdim=True) + 1e-6
 
             photo_norm = (photo - mean) / std
-            photo_peak = torch.relu(photo_norm)
+            photo_peak = torch.relu(photo_norm - 1.5)
 
             # make mask explain the residual
             reprojection_loss_item = (
                 (1 - M_soft) * photo +
-                0.5 * M_soft * photo_peak.detach()
+                0.3 * M_soft * photo_peak.detach()
             )
 
 
