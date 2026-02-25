@@ -570,7 +570,7 @@ class Trainer:
                 outputs["identity_selection"] = mask_comb.clone()
 
             loss_reflec += (
-                reflec_loss_item * mask_comb * (1 - M_soft)
+                reflec_loss_item * mask_comb
             ).mean()
 
             loss_reprojection += (
@@ -610,11 +610,13 @@ class Trainer:
             torch.abs(M0[:, :, :-1, :] - M0[:, :, 1:, :]).mean()
         )
 
-        total_loss += 0.01 * loss_mask_l1 + 0.1 * loss_mask_tv
+        total_loss += 0.1 * loss_mask_l1 + 0.1 * loss_mask_tv
 
-        losses["loss_reprojection"] = loss_reprojection
-        losses["loss_reflec"] = loss_reflec
-        losses["mask_mean"] = M0.mean()
+        print(
+            f"loss_reprojection: {loss_reprojection.item():.6f} | "
+            f"loss_reflec: {loss_reflec.item():.6f} | "
+            f"mask_mean: {outputs[('mask', 0, 0)].mean().item():.6f}"
+        )
         losses["loss"] = total_loss
 
         return losses
