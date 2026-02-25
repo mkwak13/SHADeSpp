@@ -559,7 +559,7 @@ class Trainer:
 
             photo = self.compute_reprojection_loss(raw, pred)
 
-            reprojection_loss_item = photo / (1.0 * M_soft)
+            reprojection_loss_item = photo * (1.0 - M_soft.detach())
 
             if self.opt.automasking:
                 identity_reprojection_loss_item = self.compute_reprojection_loss(inputs[("color", frame_id, 0)], inputs[("color", 0, 0)])
@@ -602,7 +602,14 @@ class Trainer:
         )
         total_loss += 0.05 * loss_light_smooth
 
+        # glare indicator
         M0 = outputs[("mask", 0, 0)]
+        raw = inputs[("color_aug", 0, 0)]
+
+        bright_prior = (raw.max(1, keepdim=True) > 0.90).float()
+
+        loss_mask_bright = ((M0 - bright_prior) ** 2).mean()
+        total_loss += 0.1 * loss_mask_bright
 
         loss_mask_reg = (M0 ** 2).mean()
         loss_mask_tv = (
