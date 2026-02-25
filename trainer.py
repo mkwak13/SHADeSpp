@@ -405,11 +405,20 @@ class Trainer:
 
         return outputs
 
-    def decompose(self,inputs,outputs):
+    def decompose(self, inputs, outputs):
         for f_i in self.opt.frame_ids:
-            decompose_features = self.models["decompose_encoder"](inputs[("color_aug",f_i,0)])
-            outputs[("reflectance",0,f_i)],outputs[("light",0,f_i)] = self.models["decompose"](decompose_features)
-            outputs[("reprojection_color", 0, f_i)] = outputs[("reflectance", 0, f_i)]*outputs[("light", 0, f_i)]
+
+            decompose_features = self.models["decompose_encoder"](
+                inputs[("color_aug", f_i, 0)]
+            )
+
+            reflectance, light, mask = self.models["decompose"](decompose_features)
+
+            outputs[("reflectance", 0, f_i)] = reflectance
+            outputs[("light", 0, f_i)] = light
+            outputs[("mask", 0, f_i)] = mask
+
+            outputs[("reprojection_color", 0, f_i)] = reflectance * light
 
     def decompose_postprocess(self,inputs,outputs):
         disp = outputs[("disp", 0)]
@@ -519,45 +528,22 @@ class Trainer:
         loss_reflec = 0
         loss_reprojection = 0
         loss_disp_smooth = 0
-        loss_reconstruction = 0
+        loss_decomp_recon = 0
         tau = self.opt.tau
         inpaint = "inpaint_" if self.opt.inpaint_pseudo_gt_dir is not None else ""
 
         # new reconstruction loss
         for frame_id in self.opt.frame_ids:
 
-            gray_input = transforms.functional.rgb_to_grayscale(
-                inputs[("color_aug", frame_id, 0)]
-            )
-
-            gray_reproj = transforms.functional.rgb_to_grayscale(
-                outputs[("reprojection_color", 0, frame_id)]
-            )
-
-            # residual
-            residual = torch.abs(gray_input - gray_reproj)
-
-            # local contrast
-            local_mean = F.avg_pool2d(gray_input, 7, 1, 3)
-
-            contrast = (gray_input / (local_mean + 1e-6)).detach()
-
-            # contrast-aware spec
-            spec = torch.abs(
-                inputs[("color_aug", frame_id, 0)] -
-                outputs[("reflectance", 0, frame_id)].detach()
-            )
-
-            outputs[("specular_color", frame_id, 0)] = spec
-
-            x = spec.mean(1, keepdim=True).detach()
-            M_soft = torch.sigmoid((x - tau) * 15.0)
-
             raw = inputs[("color_aug", frame_id, 0)]
             pred = outputs[("reprojection_color", 0, frame_id)]
 
-            weight = 1.0 + 0.2 * (1- M_soft)
-            loss_reconstruction += (weight * self.compute_reprojection_loss(raw, pred)).mean()
+            recon = (
+                outputs[("reflectance", 0, frame_id)] *
+                outputs[("light", 0, frame_id)]
+            )
+
+            loss_decomp_recon += torch.abs(raw - recon).mean()
 
 
 
@@ -569,16 +555,10 @@ class Trainer:
             raw = inputs[("color_aug", 0, 0)]
             pred = outputs[("reprojection_color_warp", 0, frame_id)]
 
-            x = outputs[("specular_color", 0, 0)].mean(1, keepdim=True).detach()
-            M_soft = torch.sigmoid((x - tau) * 15.0)
+            M_soft = outputs[("mask", 0, 0)]
 
-
-
-            weight = 1.0 + 0.2 * (1- M_soft)
-            reprojection_loss_item = (
-                weight *
-                self.compute_reprojection_loss(raw, pred)
-            )
+            photo = self.compute_reprojection_loss(raw, pred)
+            reprojection_loss_item = photo * (1 - M_soft)
 
 
             if self.opt.automasking:
@@ -589,17 +569,13 @@ class Trainer:
                 mask_comb = mask * mask_idt
                 outputs["identity_selection"] = mask_comb.clone()
 
-            weighted_mask = mask_comb * (1 - M_soft)
-
             loss_reflec += (
-                reflec_loss_item * weighted_mask
+                reflec_loss_item * mask_comb * (1 - M_soft)
             ).mean()
 
             loss_reprojection += (
                 reprojection_loss_item * mask_comb
             ).mean()
-
-
 
         disp = outputs[("disp", 0)]
         color = inputs[("color_aug", 0, 0)]
@@ -616,8 +592,9 @@ class Trainer:
         total_loss = (self.opt.reprojection_constraint*loss_reprojection / 2.0 + 
                       self.opt.reflec_constraint*(loss_reflec / 2.0) + 
                       self.opt.disparity_smoothness*loss_disp_smooth + 
-                      self.opt.reconstruction_constraint*(loss_reconstruction/3.0) + 
                       self.opt.disparity_spatial_constraint*loss_disp_spatial)
+        
+        total_loss += self.opt.decomp_recon_weight * (loss_decomp_recon / len(self.opt.frame_ids))
 
         loss_light_smooth = get_smooth_loss(
             outputs[("light", 0, 0)],
@@ -625,8 +602,7 @@ class Trainer:
         )
         total_loss += 0.05 * loss_light_smooth
 
-        x0 = outputs[("specular_color", 0, 0)].mean(1, keepdim=True)
-        M0 = torch.sigmoid((x0 - tau) * 15.0)
+        M0 = outputs[("mask", 0, 0)]
 
         loss_mask_l1 = M0.mean()
         loss_mask_tv = (
@@ -634,7 +610,7 @@ class Trainer:
             torch.abs(M0[:, :, :-1, :] - M0[:, :, 1:, :]).mean()
         )
 
-        #total_loss += 0.01 * loss_mask_l1 + 0.1 * loss_mask_tv
+        total_loss += 0.01 * loss_mask_l1 + 0.1 * loss_mask_tv
 
         losses["loss"] = total_loss
 
@@ -700,13 +676,8 @@ class Trainer:
                         "AS_reprojection/{}".format(j),
                         outputs[("reprojection_color", 0, 0)][j].data, self.step)
                 writer.add_image(
-                        "Specular_I-AS/{}".format(j),
-                        outputs[("specular_color", 0, 0)][j].data, self.step)
-                # no longer handling pseudo GT
-                if ("specular_color_pseudo", 0, 0) in outputs:
-                    writer.add_image(
-                            "Specular_Iinp-AS/{}".format(j),
-                            outputs[("specular_color_pseudo", 0, 0)][j].data, self.step)
+                    "mask/{}".format(j),
+                    outputs[("mask", 0, 0)][j].data, self.step)
                 writer.add_image(
                         "input_1/{}".format(j),
                         inputs[("color", 1, 0)][j].data, self.step)
