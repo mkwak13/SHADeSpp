@@ -621,13 +621,13 @@ class Trainer:
       
         # Direct specular suppression
         loss_spec_direct = outputs[("specular_color", 0, 0)].mean()
-        total_loss += 0.05 * loss_spec_direct
+        total_loss += 0.1 * loss_spec_direct
 
         loss_light_smooth = get_smooth_loss(
             outputs[("light", 0, 0)],
             inputs[("color_aug", 0, 0)]
         )
-        total_loss += 0.1 * loss_light_smooth
+        total_loss += 0.05 * loss_light_smooth
 
         x0 = outputs[("specular_color", 0, 0)].mean(1, keepdim=True)
         M0 = torch.sigmoid((x0 - tau) * 15.0)
