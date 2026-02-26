@@ -555,21 +555,24 @@ class Trainer:
             raw = inputs[("color_aug", 0, 0)]
             pred = outputs[("reprojection_color_warp", 0, frame_id)]
 
-            M_soft = outputs[("mask", 0, 0)]
-
             photo = self.compute_reprojection_loss(raw, pred)
 
             M_soft = outputs[("mask", 0, 0)].detach()
             alpha = 0.3
-            reprojection_loss_item = photo * (1.0 - alpha * M_soft)
+
+            photo_masked = photo * (1.0 - alpha * M_soft)
 
             if self.opt.automasking:
-                identity_reprojection_loss_item = self.compute_reprojection_loss(inputs[("color", frame_id, 0)], inputs[("color", 0, 0)])
-                # add random numbers to break ties
-                identity_reprojection_loss_item += torch.randn(identity_reprojection_loss_item.shape, device=self.device) * 0.00001
-                mask_idt = (reprojection_loss_item < identity_reprojection_loss_item).float()
+                identity_reprojection_loss_item = self.compute_reprojection_loss(
+                    inputs[("color", frame_id, 0)],
+                    inputs[("color", 0, 0)]
+                )
+                identity_reprojection_loss_item += torch.randn_like(identity_reprojection_loss_item) * 1e-5
+
+                mask_idt = (photo < identity_reprojection_loss_item).float()
                 mask_comb = mask * mask_idt
-                outputs["identity_selection"] = mask_comb.clone()
+
+            reprojection_loss_item = photo_masked
 
             loss_reflec += (
                 reflec_loss_item * mask_comb
