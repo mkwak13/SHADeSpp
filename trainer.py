@@ -615,6 +615,7 @@ class Trainer:
         )
 
         total_loss += 0.001 * loss_mask_reg + 0.01 * loss_mask_tv
+        losses["loss"] = total_loss
 
         return losses
 
