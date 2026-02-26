@@ -3,15 +3,6 @@
   "log_dir": "models/shadespp",
   "tau": 0.50,
   "decomp_recon_weight": 1.0,
-  "load_weights_folder": "models/shadespp/v_tau050/models/weights_0",
-  "models_to_load": [
-    "encoder",
-    "depth",
-    "decompose_encoder",
-    "decompose",
-    "pose_encoder",
-    "pose"
-],
 
   "data_path": "datasets/C3VD/Dataset",
   "split": "c3vd",
@@ -24,5 +15,5 @@
   "noadjust": true,
 
   "save_frequency": 1,
-  "num_epochs": 2
+  "num_epochs": 3
 }
