@@ -571,6 +571,7 @@ class Trainer:
 
                 mask_idt = (photo < identity_reprojection_loss_item).float()
                 mask_comb = mask * mask_idt
+                outputs["identity_selection"] = mask_comb.clone()
 
             reprojection_loss_item = photo_masked
 
