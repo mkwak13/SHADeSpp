@@ -557,11 +557,6 @@ class Trainer:
 
             photo = self.compute_reprojection_loss(raw, pred)
 
-            M_soft = outputs[("mask", 0, 0)].detach()
-            alpha = 0.3
-
-            photo_masked = photo * (1.0 - alpha * M_soft)
-
             if self.opt.automasking:
                 identity_reprojection_loss_item = self.compute_reprojection_loss(
                     inputs[("color", frame_id, 0)],
@@ -573,10 +568,12 @@ class Trainer:
                 mask_comb = mask * mask_idt
                 outputs["identity_selection"] = mask_comb.clone()
 
-            reprojection_loss_item = photo_masked
+            reprojection_loss_item = photo
+
+            M_soft = outputs[("mask", 0, 0)]
 
             loss_reflec += (
-                reflec_loss_item * mask_comb
+                reflec_loss_item * mask_comb * M_soft
             ).mean()
 
             loss_reprojection += (
@@ -608,34 +605,16 @@ class Trainer:
         )
         total_loss += 0.05 * loss_light_smooth
 
-        # glare indicator
-        # M0 = outputs[("mask", 0, 0)]
-        # raw = inputs[("color_aug", 0, 0)]
+        M0 = outputs[("mask", 0, 0)]
 
-        # bright_values, _ = raw.max(1, keepdim=True)
+        loss_mask_reg = (M0 ** 2).mean()
 
-        # local_mean = F.avg_pool2d(raw.mean(1, keepdim=True), 7, stride=1, padding=3)
-        # local_contrast = raw.mean(1, keepdim=True) - local_mean
+        loss_mask_tv = (
+            torch.abs(M0[:, :, :, :-1] - M0[:, :, :, 1:]).mean() +
+            torch.abs(M0[:, :, :-1, :] - M0[:, :, 1:, :]).mean()
+        )
 
-        # bright_prior = ((bright_values > 0.88) & (local_contrast > 0.05)).float()
-
-        # loss_mask_bright = ((M0 - bright_prior) ** 2).mean()
-        # total_loss += 0.5 * loss_mask_bright
-
-        # loss_mask_reg = (M0 ** 2).mean()
-        # loss_mask_tv = (
-        #     torch.abs(M0[:, :, :, :-1] - M0[:, :, :, 1:]).mean() +
-        #     torch.abs(M0[:, :, :-1, :] - M0[:, :, 1:, :]).mean()
-        # )
-
-        # total_loss += 0.005 * loss_mask_reg + 0.02 * loss_mask_tv
-
-        # print(
-        #     f"loss_reprojection: {loss_reprojection.item():.6f} | "
-        #     f"loss_reflec: {loss_reflec.item():.6f} | "
-        #     f"mask_mean: {outputs[('mask', 0, 0)].mean().item():.6f}"
-        # )
-        losses["loss"] = total_loss
+        total_loss += 0.001 * loss_mask_reg + 0.01 * loss_mask_tv
 
         return losses
 
