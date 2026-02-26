@@ -1,0 +1,19 @@
+{
+  "model_name": "v_tau015",
+  "log_dir": "models/shadespp",
+  "tau": 0.50,
+  "decomp_recon_weight": 1.0,
+
+  "data_path": "datasets/C3VD/Dataset",
+  "split": "c3vd",
+  "dataset": "c3vd",
+  "height": 288,
+  "width": 288,
+  "png": true,
+
+  "automasking": true,
+  "noadjust": true,
+
+  "save_frequency": 1,
+  "num_epochs": 5
+}
