@@ -552,10 +552,14 @@ class Trainer:
             mask_comb = mask.clone()
             reflec_loss_item = torch.abs(outputs[("reflectance",0,0)] - outputs[("reflectance_warp", 0, frame_id)]).mean(1, True)
 
-            raw = inputs[("color_aug", 0, 0)]
-            pred = outputs[("reprojection_color_warp", 0, frame_id)]
+            raw_ref = outputs[("reflectance", 0, 0)]
+            pred_ref = outputs[("reflectance_warp", 0, frame_id)]
 
-            photo = self.compute_reprojection_loss(raw, pred)
+            photo_ref = self.compute_reprojection_loss(raw_ref, pred_ref)
+
+            M_soft = outputs[("mask", 0, 0)]
+
+            photo = photo * (1.0 - 0.3 * M_soft) + photo_ref * (0.3 * M_soft)
 
             if self.opt.automasking:
                 identity_reprojection_loss_item = self.compute_reprojection_loss(
