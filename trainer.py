@@ -572,7 +572,7 @@ class Trainer:
 
             M_soft = outputs[("mask", 0, 0)]
 
-            photo = photo * (1.0 - 0.2 * M_soft)
+            photo = photo * (1.0 - 0.6 * M_soft)
 
             reprojection_loss_item = photo
 
@@ -599,11 +599,10 @@ class Trainer:
         color = inputs[("color_aug", 0, 0)]
         mean_disp = disp.mean(2, True).mean(3, True)
         norm_disp = disp / (mean_disp + 1e-7)
-        loss_disp_smooth = get_smooth_loss(norm_disp, color)
 
         M_soft = outputs[("mask", 0, 0)]
 
-        smooth_weight = (1.0 - 0.5 * M_soft)
+        smooth_weight = (1.0 - 0.8 * M_soft)
         loss_disp_smooth = (get_smooth_loss(norm_disp, color) * smooth_weight.mean())
 
 
