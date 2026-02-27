@@ -572,27 +572,32 @@ class Trainer:
             photo_raw = self.compute_reprojection_loss(raw, pred)
             if "photo_raw_vis" not in outputs:
                 outputs["photo_raw_vis"] = photo_raw.detach()
+            if "brightness_vis" not in outputs:
+                outputs["brightness_vis"] = brightness_centered.detach()
 
-            if self.opt.automasking:
-                identity_reprojection_loss_item = self.compute_reprojection_loss(
-                    inputs[("color", frame_id, 0)],
-                    inputs[("color", 0, 0)]
-                )
-                identity_reprojection_loss_item += torch.randn_like(identity_reprojection_loss_item) * 1e-5
+            # if self.opt.automasking:
+            #     identity_reprojection_loss_item = self.compute_reprojection_loss(
+            #         inputs[("color", frame_id, 0)],
+            #         inputs[("color", 0, 0)]
+            #     )
+            #     identity_reprojection_loss_item += torch.randn_like(identity_reprojection_loss_item) * 1e-5
 
-                mask_idt = (photo_raw < identity_reprojection_loss_item).float()
-                mask_comb = mask * mask_idt
-                outputs["identity_selection"] = mask_comb.clone()
+            #     mask_idt = (photo_raw < identity_reprojection_loss_item).float()
+            #     mask_comb = mask * mask_idt
+            #     outputs["identity_selection"] = mask_comb.clone()
 
             M_soft = outputs[("mask", 0, 0)]
 
             # ---- Specular brightness prior ----
-            brightness = raw.mean(1, keepdim=True)          # (B,1,H,W)
-            brightness = brightness / (brightness.mean() + 1e-6)
+            brightness = raw.mean(1, keepdim=True)
 
-            lambda_spec = 0.3  # ???
+            # ???? ?? ??? ??
+            brightness_centered = brightness - brightness.mean(dim=[2,3], keepdim=True)
+            brightness_centered = torch.clamp(brightness_centered, min=0.0)
 
-            photo_aug = photo_raw + lambda_spec * brightness
+            lambda_spec = 0.3
+
+            photo_aug = photo_raw + lambda_spec * brightness_centered
 
             photo = photo_aug * (1.0 - M_soft)
 
@@ -718,14 +723,20 @@ class Trainer:
                     writer.add_image(
                             "light_adjust_warped/{}".format(j),
                             outputs[("light_adjust_warp", 0, 1)][j].data, self.step)
-                if self.opt.automasking:
+                if self.opt.automasking and "identity_selection" in outputs:
                     writer.add_image(
-                            "automask/{}".format(j),
-                            outputs["identity_selection"][j].data, self.step)
+                        "automask/{}".format(j),
+                        outputs["identity_selection"][j].data, self.step)
                 if "photo_raw_vis" in outputs:
                     writer.add_image(
                         "photo_raw/{}".format(j),
                         outputs["photo_raw_vis"][j].data,
+                        self.step
+                    )
+                if "brightness_vis" in outputs:
+                    writer.add_image(
+                        "brightness/{}".format(j),
+                        outputs["brightness_vis"][j].data,
                         self.step
                     )
 
