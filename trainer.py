@@ -422,11 +422,17 @@ class Trainer:
 
             reflectance, light, mask = self.models["decompose"](decompose_features)
 
-            outputs[("reflectance", 0, f_i)] = reflectance
+            # diffuse-only reflectance
+            reflectance_diffuse = reflectance * (1 - mask)
+
+            # specular component
+            specular = light * mask
+
+            outputs[("reflectance", 0, f_i)] = reflectance_diffuse
             outputs[("light", 0, f_i)] = light
             outputs[("mask", 0, f_i)] = mask
 
-            outputs[("reprojection_color", 0, f_i)] = reflectance * light
+            outputs[("reprojection_color", 0, f_i)] = reflectance_diffuse * light + specular
 
     def decompose_postprocess(self,inputs,outputs):
         disp = outputs[("disp", 0)]
