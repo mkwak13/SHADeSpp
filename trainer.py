@@ -614,7 +614,7 @@ class Trainer:
             )
             loss_mask_align_total += loss_mask_align
 
-            photo = photo_raw * (1.0 - M_soft.detach()) ** 2
+            photo = photo_raw * (1.0 - M_soft.detach())
 
             outputs["photo_after_mask_vis"] = photo.detach()
 
