@@ -17,5 +17,5 @@
   "noadjust": true,
 
   "save_frequency": 1,
-  "num_epochs": 5
+  "num_epochs": 1
 }
