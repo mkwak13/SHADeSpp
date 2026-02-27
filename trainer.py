@@ -589,10 +589,12 @@ class Trainer:
 
             raw = inputs[("color_aug", 0, 0)]
 
+            spec_gate = torch.clamp((reflec_loss_item - 0.05) * 20.0, 0.0, 1.0)
+
             loss_reflec += (
                 reflec_loss_item *
                 mask_comb *
-                (1.0 - M_soft)
+                (1.0 - M_soft * spec_gate)
             ).mean()
 
             loss_reprojection += (
