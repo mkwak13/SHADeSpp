@@ -589,15 +589,21 @@ class Trainer:
             # ---- Specular brightness prior ----
             brightness = raw.mean(1, keepdim=True)
 
-            # ???? ?? ??? ??
-            brightness_centered = brightness - brightness.mean(dim=[2,3], keepdim=True)
-            brightness_centered = torch.clamp(brightness_centered, min=0.0)
+            # high-pass ?? ?? (specular? sharp)
+            blur = torch.nn.functional.avg_pool2d(brightness, 9, stride=1, padding=4)
+            high_freq = torch.clamp(brightness - blur, min=0.0)
 
-            outputs["brightness_vis"] = brightness_centered.detach()
+            # ?? 3%? ??
+            threshold = torch.quantile(high_freq.flatten(1), 0.97, dim=1, keepdim=True)
+            threshold = threshold.view(-1,1,1,1)
+
+            specular_map = torch.clamp(high_freq - threshold, min=0.0)
+
+            outputs["specular_vis"] = specular_map.detach()
 
             lambda_spec = 0.3
+            photo_aug = photo_raw + lambda_spec * specular_map
 
-            photo_aug = photo_raw + lambda_spec * brightness_centered
 
             photo = photo_aug * (1.0 - M_soft)
 
@@ -742,6 +748,12 @@ class Trainer:
                     writer.add_image(
                         "brightness/{}".format(j),
                         outputs["brightness_vis"][j].data,
+                        self.step
+                    )
+                if "specular_vis" in outputs:
+                    writer.add_image(
+                        "specular/{}".format(j),
+                        outputs["specular_vis"][j].data,
                         self.step
                     )
 
