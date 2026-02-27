@@ -118,26 +118,27 @@ def evaluate(opt):
         encoder.load_state_dict({k: v for k, v in encoder_dict.items() if k in model_dict})
         depth_decoder.load_state_dict(torch.load(decoder_path))
 
-        decompose_encoder = networks.ResnetEncoder(
-            opt.num_layers,
-            False
-        )
-        decompose_decoder = networks.decompose_decoder(
-            decompose_encoder.num_ch_enc,
-            scales=range(4)
-        )
+        if num_in == 2:
+            decompose_encoder = networks.ResnetEncoder(
+                opt.num_layers,
+                False
+            )
+            decompose_decoder = networks.decompose_decoder(
+                decompose_encoder.num_ch_enc,
+                scales=range(4)
+            )
 
-        decompose_encoder.load_state_dict(
-            torch.load(os.path.join(opt.load_weights_folder, "decompose_encoder.pth"))
-        )
-        decompose_decoder.load_state_dict(
-            torch.load(os.path.join(opt.load_weights_folder, "decompose.pth"))
-        )
+            decompose_encoder.load_state_dict(
+                torch.load(os.path.join(opt.load_weights_folder, "decompose_encoder.pth"))
+            )
+            decompose_decoder.load_state_dict(
+                torch.load(os.path.join(opt.load_weights_folder, "decompose.pth"))
+            )
 
-        decompose_encoder.cuda()
-        decompose_encoder.eval()
-        decompose_decoder.cuda()
-        decompose_decoder.eval()
+            decompose_encoder.cuda()
+            decompose_encoder.eval()
+            decompose_decoder.cuda()
+            decompose_decoder.eval()
 
         encoder.cuda()
         encoder.eval()
