@@ -51,7 +51,10 @@ class Trainer:
         assert self.opt.frame_ids[0] == 0, "frame_ids must start with 0"
 
         self.models["encoder"] = networks.ResnetEncoder(
-            self.opt.num_layers, self.opt.weights_init == "pretrained")  # 18
+            self.opt.num_layers,
+            self.opt.weights_init == "pretrained",
+            num_input_images=2   # ? ??
+        )
         self.models["encoder"].to(self.device)
         self.parameters_to_train += list(self.models["encoder"].parameters())
 
