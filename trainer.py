@@ -585,6 +585,10 @@ class Trainer:
 
             reprojection_loss_item = photo
 
+            loss_reprojection += (
+                reprojection_loss_item * mask_comb
+            ).mean()
+
             M_soft = outputs[("mask", 0, 0)]
 
             raw0 = inputs[("color_aug", 0, 0)]
