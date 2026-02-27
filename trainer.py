@@ -599,7 +599,7 @@ class Trainer:
 
             photo_aug = photo_raw + lambda_spec * brightness_centered
 
-            photo = photo_aug * (M_soft)
+            photo = photo_aug * (1.0 - M_soft)
 
             loss_reprojection += (photo * mask_comb).mean()
 
@@ -610,7 +610,7 @@ class Trainer:
 
         M_soft = outputs[("mask", 0, 0)]
 
-        smooth_weight = (M_soft)
+        smooth_weight = (1.0 - M_soft)
         smooth_loss_map = get_smooth_loss(norm_disp, color)
         loss_disp_smooth = (smooth_loss_map * smooth_weight).mean()
 
@@ -644,6 +644,11 @@ class Trainer:
         )
 
         total_loss += 0.001 * loss_mask_reg + 0.005 * loss_mask_tv
+
+        target_ratio = 0.15
+        loss_mask_ratio = torch.abs(M0.mean() - target_ratio)
+        total_loss += 0.1 * loss_mask_ratio
+
         losses["loss"] = total_loss
 
         return losses
