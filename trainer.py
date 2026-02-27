@@ -568,7 +568,7 @@ class Trainer:
 
             M_soft = outputs[("mask", 0, 0)]
 
-            photo = photo * (1.0 - 0.3 * M_soft)
+            #photo = photo * (1.0 - 0.3 * M_soft)
 
             reprojection_loss_item = photo
 
