@@ -54,26 +54,35 @@ def resnet_multiimage_input(num_layers, pretrained=False, num_input_images=1):
 
 
 class ResnetEncoder(nn.Module):
-    """Pytorch module for a resnet encoder
-    """
     def __init__(self, num_layers, pretrained, num_input_images=1):
         super(ResnetEncoder, self).__init__()
 
         self.num_ch_enc = np.array([64, 64, 128, 256, 512])
 
-        resnets = {18: models.resnet18,
-                   34: models.resnet34,
-                   50: models.resnet50,
-                   101: models.resnet101,
-                   152: models.resnet152}
+        resnets = {
+            18: models.resnet18,
+            34: models.resnet34,
+            50: models.resnet50,
+            101: models.resnet101,
+            152: models.resnet152
+        }
 
         if num_layers not in resnets:
-            raise ValueError("{} is not a valid number of resnet layers".format(num_layers))
+            raise ValueError(f"{num_layers} is not valid")
 
-        if num_input_images > 1:
-            self.encoder = resnet_multiimage_input(num_layers, pretrained, num_input_images)
-        else:
-            self.encoder = resnets[num_layers](pretrained)
+        # 1?? ?? ?? ResNet ??
+        self.encoder = resnets[num_layers](pretrained=pretrained)
+
+        # 2?? conv1? 6??? ??
+        old_conv = self.encoder.conv1
+        self.encoder.conv1 = nn.Conv2d(
+            6, 64, kernel_size=7, stride=2, padding=3, bias=False)
+
+        # 3?? pretrained weight ?? (??)
+        if pretrained:
+            with torch.no_grad():
+                self.encoder.conv1.weight[:, :3] = old_conv.weight
+                self.encoder.conv1.weight[:, 3:] = old_conv.weight
 
         if num_layers > 34:
             self.num_ch_enc[1:] *= 4

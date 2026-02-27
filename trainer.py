@@ -365,7 +365,12 @@ class Trainer:
         if self.opt.light_in_depth:
             features = self.models["encoder"](outputs["light", 0, 0].repeat_interleave(3, dim=1))
         else:
-            features = self.models["encoder"](inputs["color_aug", 0, 0])
+            input_color = inputs[("color_aug", 0, 0)]
+            reflectance = outputs[("reflectance", 0, 0)]
+
+            depth_input = torch.cat([input_color, reflectance], dim=1)
+
+            features = self.models["encoder"](depth_input)
         outputs.update(self.models["depth"](features))
 
         # pose
