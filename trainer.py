@@ -588,16 +588,11 @@ class Trainer:
             M_soft = outputs[("mask", 0, 0)]
 
             raw = inputs[("color_aug", 0, 0)]
-            brightness = raw.mean(1, keepdim=True)
-
-            bright_mask = (brightness > 0.6).float()
-
-            spec_weight = bright_mask * (reflec_loss_item > 0.05).float()
 
             loss_reflec += (
                 reflec_loss_item *
                 mask_comb *
-                (1.0 + 2.0 * M_soft * spec_weight)
+                (1.0 - M_soft)
             ).mean()
 
             loss_reprojection += (
