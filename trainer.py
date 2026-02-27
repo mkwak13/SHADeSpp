@@ -657,6 +657,10 @@ class Trainer:
 
         total_loss += 0.001 * loss_mask_reg + 0.005 * loss_mask_tv
 
+        target_ratio = 0.15
+        loss_mask_ratio = torch.abs(M0.mean() - target_ratio)
+        total_loss += 0.02 * loss_mask_ratio
+
         losses["loss"] = total_loss
 
         return losses
