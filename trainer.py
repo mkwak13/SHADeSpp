@@ -753,6 +753,12 @@ class Trainer:
                         outputs["photo_raw_vis"][j].data,
                         self.step
                     )
+                if "photo_after_mask_vis" in outputs:
+                    writer.add_image(
+                        "photo_after_mask/{}".format(j),
+                        outputs["photo_after_mask_vis"][j].data,
+                        self.step
+                    )
                 if "brightness_vis" in outputs:
                     writer.add_image(
                         "brightness/{}".format(j),
