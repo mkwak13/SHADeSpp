@@ -572,8 +572,6 @@ class Trainer:
             photo_raw = self.compute_reprojection_loss(raw, pred)
             if "photo_raw_vis" not in outputs:
                 outputs["photo_raw_vis"] = photo_raw.detach()
-            if "brightness_vis" not in outputs:
-                outputs["brightness_vis"] = brightness_centered.detach()
 
             # if self.opt.automasking:
             #     identity_reprojection_loss_item = self.compute_reprojection_loss(
@@ -594,6 +592,8 @@ class Trainer:
             # ???? ?? ??? ??
             brightness_centered = brightness - brightness.mean(dim=[2,3], keepdim=True)
             brightness_centered = torch.clamp(brightness_centered, min=0.0)
+
+            outputs["brightness_vis"] = brightness_centered.detach()
 
             lambda_spec = 0.3
 
