@@ -588,7 +588,7 @@ class Trainer:
             M_soft = outputs[("mask", 0, 0)]
 
             loss_reflec += (
-                reflec_loss_item * mask_comb * (1.0 + 1.0 * M_soft)
+                reflec_loss_item * mask_comb * (1.0 + 4.0 * M_soft)
             ).mean()
 
             loss_reprojection += (
