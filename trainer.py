@@ -571,16 +571,16 @@ class Trainer:
             # ?? photometric
             photo_raw = self.compute_reprojection_loss(raw, pred)
 
-            if self.opt.automasking:
-                identity_reprojection_loss_item = self.compute_reprojection_loss(
-                    inputs[("color", frame_id, 0)],
-                    inputs[("color", 0, 0)]
-                )
-                identity_reprojection_loss_item += torch.randn_like(identity_reprojection_loss_item) * 1e-5
+            # if self.opt.automasking:
+            #     identity_reprojection_loss_item = self.compute_reprojection_loss(
+            #         inputs[("color", frame_id, 0)],
+            #         inputs[("color", 0, 0)]
+            #     )
+            #     identity_reprojection_loss_item += torch.randn_like(identity_reprojection_loss_item) * 1e-5
 
-                mask_idt = (photo_raw < identity_reprojection_loss_item).float()
-                mask_comb = mask * mask_idt
-                outputs["identity_selection"] = mask_comb.clone()
+            #     mask_idt = (photo_raw < identity_reprojection_loss_item).float()
+            #     mask_comb = mask * mask_idt
+            #     outputs["identity_selection"] = mask_comb.clone()
 
             M_soft = outputs[("mask", 0, 0)]
 
