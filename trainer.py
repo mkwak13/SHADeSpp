@@ -572,7 +572,7 @@ class Trainer:
 
             M_soft = outputs[("mask", 0, 0)]
 
-            photo = photo * (1.0 - 0.6 * M_soft)
+            photo = photo * (1.0 - M_soft)
 
             reprojection_loss_item = photo
 
@@ -602,8 +602,9 @@ class Trainer:
 
         M_soft = outputs[("mask", 0, 0)]
 
-        smooth_weight = (1.0 - 0.8 * M_soft)
-        loss_disp_smooth = (get_smooth_loss(norm_disp, color) * smooth_weight.mean())
+        smooth_weight = (1.0 - M_soft)
+        smooth_loss_map = get_smooth_loss(norm_disp, color)
+        loss_disp_smooth = (smooth_loss_map * smooth_weight).mean()
 
 
         if self.opt.disparity_spatial_constraint > 0:
@@ -627,7 +628,7 @@ class Trainer:
 
         print("mask_mean:", M0.mean().item())
 
-        loss_mask_reg = (M0 ** 2).mean()
+        loss_mask_reg = 0
 
         loss_mask_tv = (
             torch.abs(M0[:, :, :, :-1] - M0[:, :, :, 1:]).mean() +
