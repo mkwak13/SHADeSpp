@@ -281,17 +281,31 @@ def evaluate(opt):
         print(" Scaling ratios | med: {:0.3f} | std: {:0.3f}".format(med, np.std(ratios / med)))
 
     mean_all = np.array(errors_all).mean(0)
-    mean_spec = np.array(errors_spec).mean(0)
-    mean_nonspec = np.array(errors_nonspec).mean(0)
+
+    if len(errors_spec) > 0:
+        mean_spec = np.array(errors_spec).mean(0)
+    else:
+        mean_spec = None
+
+    if len(errors_nonspec) > 0:
+        mean_nonspec = np.array(errors_nonspec).mean(0)
+    else:
+        mean_nonspec = None
 
     print("\n===== Overall =====")
     print(("&{: 8.3f}  " * 8).format(*mean_all.tolist()) + "\\\\")
 
     print("\n===== Specular =====")
-    print(("&{: 8.3f}  " * 8).format(*mean_spec.tolist()) + "\\\\")
+    if mean_spec is not None:
+        print(("&{: 8.3f}  " * 8).format(*mean_spec.tolist()) + "\\\\")
+    else:
+        print("No specular pixels detected")
 
     print("\n===== Non-Specular =====")
-    print(("&{: 8.3f}  " * 8).format(*mean_nonspec.tolist()) + "\\\\")
+    if mean_nonspec is not None:
+        print(("&{: 8.3f}  " * 8).format(*mean_nonspec.tolist()) + "\\\\")
+    else:
+        print("No non-specular pixels detected")
     print("\n-> Done!")
 
 
