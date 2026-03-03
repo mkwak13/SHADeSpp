@@ -554,24 +554,19 @@ class Trainer:
         for frame_id in self.opt.frame_ids:
 
             raw = inputs[("color_aug", frame_id, 0)]
-            pred = outputs[("reprojection_color_warp", 0, frame_id)]
 
             recon = (
                 outputs[("reflectance", 0, frame_id)] *
                 outputs[("light", 0, frame_id)]
             )
-
             loss_decomp_recon += torch.abs(raw - recon).mean()
-
-
 
         for frame_id in self.opt.frame_ids[1:]: 
             mask = outputs[("valid_mask", 0, frame_id)]
             mask_comb = mask.clone()
 
             raw = inputs[("color_aug", 0, 0)]
-            #pred = outputs[("reprojection_color_warp", 0, frame_id)]
-            pred = outputs[("color_warp", 0, frame_id)]
+            pred = outputs[("reprojection_color_warp", 0, frame_id)]
 
             # ?? photometric
             photo_raw = self.compute_reprojection_loss(raw, pred)
