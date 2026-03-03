@@ -615,7 +615,7 @@ class Trainer:
             loss_mask_align_total += loss_mask_align
 
             photo = photo_raw
-            loss_reprojection += ((1 + 0.5 * M_soft.detach()) * photo * mask_comb).mean()
+            loss_reprojection += ((1 + 0.7 * M_soft.detach()) * photo * mask_comb).mean()
 
             outputs["photo_after_mask_vis"] = photo.detach()
 
