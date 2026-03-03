@@ -554,7 +554,7 @@ class Trainer:
         for frame_id in self.opt.frame_ids:
 
             raw = inputs[("color_aug", frame_id, 0)]
-            pred = outputs[("reprojection_color", 0, frame_id)]
+            pred = outputs[("reprojection_color_warp", 0, frame_id)]
 
             recon = (
                 outputs[("reflectance", 0, frame_id)] *
