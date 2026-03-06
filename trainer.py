@@ -684,6 +684,14 @@ class Trainer:
 
             with torch.no_grad():
                 outputs, losses = self.process_batch(inputs)
+                for f_i in self.opt.frame_ids[1:]:
+                    if ("translation", 0, f_i) in outputs:
+                        print(
+                            "pose_trans_mean:",
+                            outputs[("translation", 0, f_i)].abs().mean().item(),
+                            "pose_rot_mean:",
+                            outputs[("axisangle", 0, f_i)].abs().mean().item()
+                        )
                 self.log("val", inputs, outputs, losses)
                 del inputs, outputs, losses
 
