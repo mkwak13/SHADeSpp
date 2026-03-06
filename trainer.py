@@ -113,7 +113,7 @@ class Trainer:
         if not isinstance(self.opt.split, list):
             self.opt.split = [self.opt.split]
 
-        fpath = [os.path.join(os.path.dirname(__file__), "splits", split, "{}_files.txt") for split in self.opt.split]        
+        fpath = [os.path.join(os.path.dirname(__file__), "splits", split, "train_small.txt") for split in self.opt.split]
         img_ext = '.png' if self.opt.png else '.jpg'
 
         val_filenames =[]
