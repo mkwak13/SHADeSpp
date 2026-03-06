@@ -13,9 +13,9 @@
   "width": 288,
   "png": true,
 
-  "automasking": true,
+  "automasking": false,
   "noadjust": true,
 
   "save_frequency": 1,
-  "num_epochs": 3
+  "num_epochs": 5
 }
