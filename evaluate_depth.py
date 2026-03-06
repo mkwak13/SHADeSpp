@@ -118,7 +118,7 @@ def evaluate(opt):
         encoder.load_state_dict({k: v for k, v in encoder_dict.items() if k in model_dict})
         depth_decoder.load_state_dict(torch.load(decoder_path))
 
-        if num_in == 2:
+        if num_in == 3:
             decompose_encoder = networks.ResnetEncoder(
                 opt.num_layers,
                 False
@@ -160,10 +160,17 @@ def evaluate(opt):
                     input_color = torch.cat((input_color, torch.flip(input_color, [3])), 0)
 
                 # ----- decompose forward -----
-                if num_in == 2:
+                if num_in == 3:
+                    # decompose forward
                     decompose_feat = decompose_encoder(input_color)
                     reflectance, light, mask_soft = decompose_decoder(decompose_feat)
-                    depth_input = torch.cat([input_color, reflectance], dim=1)
+
+                    # mask? 3??? ??
+                    mask_soft_3 = mask_soft.repeat(1, 3, 1, 1)
+
+                    # training? ???? 9?? ?? ??
+                    depth_input = torch.cat([input_color, reflectance, mask_soft_3], dim=1)
+
                 else:
                     mask_soft = torch.zeros_like(input_color[:, :1])
                     depth_input = input_color
