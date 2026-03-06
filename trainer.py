@@ -615,7 +615,7 @@ class Trainer:
             loss_mask_align_total += loss_mask_align
 
             photo = photo_raw
-            loss_reprojection += ((1 + 0.5 * M_soft.detach()) * photo * mask_comb).mean()
+            loss_reprojection += (photo * mask_comb).mean()
 
             outputs["photo_after_mask_vis"] = photo.detach()
 
@@ -626,7 +626,7 @@ class Trainer:
 
         M_soft = outputs[("mask", 0, 0)]
 
-        smooth_weight = (1.0 - M_soft)
+        smooth_weight = 1.0 + 0.5 * M_soft.detach()
         smooth_loss_map = get_smooth_loss(norm_disp, color)
         loss_disp_smooth = (smooth_loss_map * smooth_weight).mean()
 
