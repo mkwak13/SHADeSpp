@@ -375,7 +375,12 @@ class Trainer:
             if mask.dim() == 3:
                 mask = mask.unsqueeze(1)
 
+            print("color:", input_color.shape)
+            print("reflectance:", reflectance.shape)
+            print("mask:", mask.shape)
             depth_input = torch.cat([input_color, reflectance, mask], dim=1)
+
+            print("depth_input:", depth_input.shape)
 
             features = self.models["encoder"](depth_input)
         outputs.update(self.models["depth"](features))
