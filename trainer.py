@@ -627,7 +627,7 @@ class Trainer:
 
         M_soft = outputs[("mask", 0, 0)]
 
-        smooth_weight = 1.0 + 0.5 * M_soft.detach()
+        smooth_weight = 1.0 + 0.3 * M_soft.detach()
         smooth_loss_map = get_smooth_loss(norm_disp, color)
         loss_disp_smooth = (smooth_loss_map * smooth_weight).mean()
 
