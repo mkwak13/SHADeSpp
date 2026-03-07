@@ -112,6 +112,10 @@ def evaluate(opt):
             False,
             num_input_images=num_in
         )
+        if "shadespp" in opt.load_weights_folder.lower():
+            encoder.encoder.conv1 = torch.nn.Conv2d(
+                7, 64, kernel_size=7, stride=2, padding=3, bias=False
+            )
         depth_decoder = networks.DepthDecoder(encoder.num_ch_enc, scales=range(4))
 
         model_dict = encoder.state_dict()
@@ -163,7 +167,7 @@ def evaluate(opt):
                 if num_in == 2:
                     decompose_feat = decompose_encoder(input_color)
                     reflectance, light, mask_soft = decompose_decoder(decompose_feat)
-                    depth_input = torch.cat([input_color, reflectance], dim=1)
+                    depth_input = torch.cat([input_color, reflectance, mask_soft], dim=1)
                 else:
                     mask_soft = torch.zeros_like(input_color[:, :1])
                     depth_input = input_color
