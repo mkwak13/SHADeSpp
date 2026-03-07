@@ -627,12 +627,12 @@ class Trainer:
         disp = outputs[("disp", 0)]
         color = inputs[("color_aug", 0, 0)]
         mean_disp = disp.mean(2, True).mean(3, True)
-        norm_disp = disp / (mean_disp + 1e-7)
+        #norm_disp = disp / (mean_disp + 1e-7)
 
         M_soft = outputs[("mask", 0, 0)]
 
         smooth_weight = 1.0 + 0.3 * M_soft.detach()
-        smooth_loss_map = get_smooth_loss(norm_disp, color)
+        smooth_loss_map = get_smooth_loss(disp, color)
         loss_disp_smooth = (smooth_loss_map * smooth_weight).mean()
 
 
@@ -668,7 +668,7 @@ class Trainer:
 
         target_ratio = 0.15
         loss_mask_ratio = torch.abs(M0.mean() - target_ratio)
-        total_loss += 0.02 * loss_mask_ratio
+        total_loss += 0.005 * loss_mask_ratio
 
         losses["loss"] = total_loss
 
