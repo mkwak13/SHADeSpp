@@ -53,7 +53,7 @@ class Trainer:
         self.models["encoder"] = networks.ResnetEncoder(
             self.opt.num_layers,
             self.opt.weights_init == "pretrained",
-            num_input_images=3  # ? ??
+            num_input_images=2   # ? ??
         )
         self.models["encoder"].to(self.device)
         self.parameters_to_train += list(self.models["encoder"].parameters())
@@ -371,7 +371,6 @@ class Trainer:
         else:
             input_color = inputs[("color_aug", 0, 0)]
             reflectance = outputs[("reflectance", 0, 0)]
-            mask = outputs[("mask", 0, 0)]
 
             depth_input = torch.cat([input_color, reflectance, mask], dim=1)
 
