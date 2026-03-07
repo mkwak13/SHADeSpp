@@ -467,10 +467,12 @@ class Trainer:
                 outputs[("warp", 0, frame_id)],
                 padding_mode="border",align_corners=True)
 
-            outputs[("color_warp",0,frame_id)] = F.grid_sample(
-                inputs[("color_aug", frame_id, 0)],
-                outputs[("warp", 0, frame_id)],
-                padding_mode="border",align_corners=True)
+            outputs[("mask_warp",0,frame_id)] = F.grid_sample(
+                outputs[("mask",0,frame_id)],
+                outputs[("warp",0,frame_id)],
+                padding_mode="border",
+                align_corners=True
+            )
              # masking zero values
             mask_ones = torch.ones_like(inputs[("color_aug", frame_id, 0)])
             mask_warp = F.grid_sample(
@@ -594,6 +596,7 @@ class Trainer:
                 outputs["identity_selection"] = mask_comb.clone()
 
             M_soft = outputs[("mask", 0, 0)]
+            M_warp = outputs[("mask_warp", 0, frame_id)]
 
             # ---- Specular brightness prior ----
             brightness = raw.mean(1, keepdim=True)
@@ -620,7 +623,13 @@ class Trainer:
             loss_mask_align_total += loss_mask_align
 
             photo = photo_raw
-            loss_reprojection += (photo * mask_comb).mean()
+
+            spec_mask_target = 1 - M_soft
+            spec_mask_source = 1 - M_warp
+
+            spec_mask = spec_mask_target * spec_mask_source
+
+            loss_reprojection += (photo * mask_comb * spec_mask).mean()
 
             outputs["photo_after_mask_vis"] = photo.detach()
 
@@ -668,7 +677,7 @@ class Trainer:
 
         target_ratio = 0.15
         loss_mask_ratio = torch.abs(M0.mean() - target_ratio)
-        total_loss += 0.005 * loss_mask_ratio
+        total_loss += 0.02 * loss_mask_ratio
 
         losses["loss"] = total_loss
 
