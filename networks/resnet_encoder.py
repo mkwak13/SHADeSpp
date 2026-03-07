@@ -47,9 +47,13 @@ def resnet_multiimage_input(num_layers, pretrained=False, num_input_images=1):
 
     if pretrained:
         loaded = model_zoo.load_url(models.resnet.model_urls['resnet{}'.format(num_layers)])
-        w = loaded['conv1.weight']
-        loaded['conv1.weight'] = torch.cat([w, w[:, :3], w[:, :1]], 1) / 3
-        model.load_state_dict(loaded)
+
+        if loaded['conv1.weight'].shape[1] != model.conv1.weight.shape[1]:
+            w = loaded['conv1.weight']
+            repeat = model.conv1.weight.shape[1] // w.shape[1]
+            loaded['conv1.weight'] = torch.cat([w]*repeat, 1)[:, :model.conv1.weight.shape[1]]
+
+        model.load_state_dict(loaded, strict=False)
     return model
 
 
