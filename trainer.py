@@ -381,17 +381,6 @@ class Trainer:
             features = self.models["encoder"](depth_input)
         outputs.update(self.models["depth"](features))
 
-        disp = outputs[("disp", 0)]
-        M_soft = outputs[("mask", 0, 0)]
-
-        M_soft = F.interpolate(M_soft, size=disp.shape[2:], mode="bilinear", align_corners=False)
-
-        disp_mean = F.avg_pool2d(disp, kernel_size=5, stride=1, padding=2)
-
-        disp_clean = disp * (1 - M_soft) + disp_mean * M_soft
-
-        outputs[("disp", 0)] = disp_clean
-
         # pose
         outputs.update(self.predict_poses(inputs))
 
@@ -593,7 +582,7 @@ class Trainer:
             mask = outputs[("valid_mask", 0, frame_id)]
             mask_comb = mask.clone()
 
-            raw = outputs[("specular_removed", 0, 0)]
+            raw = inputs[("color", 0, 0)]
             pred = outputs[("reprojection_color_warp", 0, frame_id)]
             #pred = outputs[("color_warp", 0, frame_id)]
 
