@@ -386,11 +386,11 @@ class Trainer:
 
         M_soft = F.interpolate(M_soft, size=disp.shape[2:], mode="bilinear", align_corners=False)
 
-        # neighbor disparity
+        spec_mask = (M_soft > 0.3).float()
+
         disp_mean = F.avg_pool2d(disp, kernel_size=5, stride=1, padding=2)
 
-        # replace specular disparity
-        disp_clean = disp * (1 - M_soft) + disp_mean * M_soft
+        disp_clean = disp * (1 - spec_mask) + disp_mean * spec_mask
 
         outputs[("disp", 0)] = disp_clean
 
