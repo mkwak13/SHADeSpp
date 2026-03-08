@@ -381,6 +381,17 @@ class Trainer:
             features = self.models["encoder"](depth_input)
         outputs.update(self.models["depth"](features))
 
+        disp = outputs[("disp", 0)]
+        M_soft = outputs[("mask", 0, 0)]
+
+        M_soft = F.interpolate(M_soft, size=disp.shape[2:], mode="bilinear", align_corners=False)
+
+        disp_mean = F.avg_pool2d(disp, kernel_size=5, stride=1, padding=2)
+
+        disp_clean = disp * (1 - M_soft) + disp_mean * M_soft
+
+        outputs[("disp", 0)] = disp_clean
+
         # pose
         outputs.update(self.predict_poses(inputs))
 
@@ -431,10 +442,10 @@ class Trainer:
             reflectance_diffuse = reflectance * (1 - mask)
 
             # simple inpainting
-            kernel = 11
-            color_blur = F.avg_pool2d(inputs[("color_aug", f_i, 0)], kernel, stride=1, padding=kernel//2)
+            kernel = 7
+            reflectance_blur = F.avg_pool2d(reflectance_diffuse, kernel, stride=1, padding=kernel//2)
 
-            reflectance_diffuse = reflectance_diffuse + mask * color_blur
+            reflectance_diffuse = reflectance_diffuse + mask * reflectance_blur
 
             # specular component
             specular = light * mask
@@ -584,6 +595,7 @@ class Trainer:
 
             raw = outputs[("specular_removed", 0, 0)]
             pred = outputs[("reprojection_color_warp", 0, frame_id)]
+            #pred = outputs[("color_warp", 0, frame_id)]
 
             # ?? photometric
             photo_raw = self.compute_reprojection_loss(raw, pred)
