@@ -379,6 +379,8 @@ class Trainer:
             # attach specular-reduced reconstruction inside mask regions
             recon = reflectance * outputs[("light", 0, 0)]
             filtered = input_color * (1 - mask) + recon * mask
+            # for debugging: keep filtered image so we can log it
+            outputs[("filtered", 0, 0)] = filtered
 
             depth_input = torch.cat([filtered, reflectance, mask], dim=1)
 
@@ -749,6 +751,11 @@ class Trainer:
                 writer.add_image(
                         "input_processed/{}".format(j),
                         inputs[(inpaint+"color_aug", 0, 0)][j].data, self.step)
+                # visualize the filtered input that goes into depth encoder
+                if ("filtered", 0, 0) in outputs:
+                    writer.add_image(
+                        "filtered/{}".format(j),
+                        outputs[("filtered", 0, 0)][j].data, self.step)
                 writer.add_image(
                         "reflectance/{}".format(j),
                         outputs[("reflectance", 0, 0)][j].data, self.step)
