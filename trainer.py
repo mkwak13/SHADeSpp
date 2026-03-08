@@ -394,7 +394,19 @@ class Trainer:
             luma_color = (neigh_color * luma_weights).sum(dim=1, keepdim=True)
             luma_refl = (neigh_refl * luma_weights).sum(dim=1, keepdim=True)
             ratio = luma_color / (luma_refl + 1e-6)
-            neigh_refl = neigh_refl * ratio
+            # clamp the adjustment factor to prevent extreme colours
+            ratio = torch.clamp(ratio, 0.0, 2.0)
+
+            # if no valid neighbors (count ~= 0) fall back to neigh_color directly
+            valid = count > 0.5
+            neigh_refl = torch.where(valid, neigh_refl * ratio, neigh_color)
+
+            # final clamp to valid image range
+            neigh_refl = torch.clamp(neigh_refl, 0.0, 1.0)
+
+            # log abnormal ratios occasionally for diagnostics
+            if torch.any(ratio > 1.5):
+                print("[trainer] high ratio detected", ratio.max().item())
 
             filtered = input_color * (1 - mask) + neigh_refl * mask
             outputs[("filtered", 0, 0)] = filtered
