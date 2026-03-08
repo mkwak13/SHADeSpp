@@ -629,15 +629,14 @@ class Trainer:
 
             spec_mask = spec_mask_target * spec_mask_source
 
-            loss_reprojection += (photo * mask_comb * spec_mask).mean()
+            valid = mask_comb * spec_mask
+
+            loss_reprojection += (photo * valid).sum() / (valid.sum() + 1e-7)
 
             outputs["photo_after_mask_vis"] = photo.detach()
 
         disp = outputs[("disp", 0)]
         color = inputs[("color_aug", 0, 0)]
-        mean_disp = disp.mean(2, True).mean(3, True)
-        #norm_disp = disp / (mean_disp + 1e-7)
-
         M_soft = outputs[("mask", 0, 0)]
 
         smooth_weight = 1.0 + 0.3 * M_soft.detach()
