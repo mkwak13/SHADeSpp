@@ -384,6 +384,8 @@ class Trainer:
         disp = outputs[("disp", 0)]
         M_soft = outputs[("mask", 0, 0)]
 
+        M_soft = F.interpolate(M_soft, size=disp.shape[2:], mode="bilinear", align_corners=False)
+
         # neighbor disparity
         disp_mean = F.avg_pool2d(disp, kernel_size=5, stride=1, padding=2)
 
