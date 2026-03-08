@@ -376,7 +376,11 @@ class Trainer:
             reflectance = outputs[("reflectance", 0, 0)]
             mask = outputs[("mask", 0, 0)]
 
-            depth_input = torch.cat([input_color, reflectance, mask], dim=1)
+            # attach specular-reduced reconstruction inside mask regions
+            recon = reflectance * outputs[("light", 0, 0)]
+            filtered = input_color * (1 - mask) + recon * mask
+
+            depth_input = torch.cat([filtered, reflectance, mask], dim=1)
 
             features = self.models["encoder"](depth_input)
         outputs.update(self.models["depth"](features))
