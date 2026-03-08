@@ -404,9 +404,6 @@ class Trainer:
             # final clamp to valid image range
             neigh_refl = torch.clamp(neigh_refl, 0.0, 1.0)
 
-            # log abnormal ratios occasionally for diagnostics
-            if torch.any(ratio > 1.5):
-                print("[trainer] high ratio detected", ratio.max().item())
 
             filtered = input_color * (1 - mask) + neigh_refl * mask
             outputs[("filtered", 0, 0)] = filtered
