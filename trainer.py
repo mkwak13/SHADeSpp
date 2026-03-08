@@ -381,6 +381,17 @@ class Trainer:
             features = self.models["encoder"](depth_input)
         outputs.update(self.models["depth"](features))
 
+        disp = outputs[("disp", 0)]
+        M_soft = outputs[("mask", 0, 0)]
+
+        # neighbor disparity
+        disp_mean = F.avg_pool2d(disp, kernel_size=5, stride=1, padding=2)
+
+        # replace specular disparity
+        disp_clean = disp * (1 - M_soft) + disp_mean * M_soft
+
+        outputs[("disp", 0)] = disp_clean
+
         # pose
         outputs.update(self.predict_poses(inputs))
 
