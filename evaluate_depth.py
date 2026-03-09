@@ -212,9 +212,8 @@ def evaluate(opt):
         print("-> Saving predicted disparities to ", output_path)
         np.save(output_path, pred_disps)
 
-    # MUST CHANGE LATER
-    #gt_path = os.path.join(splits_dir, opt.eval_split, "gt_depths.npz")
-    gt_path = os.path.join(splits_dir, opt.eval_split, "val_gt_depths.npz")
+
+    gt_path = os.path.join(splits_dir, opt.eval_split, "gt_depths.npz")
     gt_depths = np.load(gt_path, fix_imports=True, encoding='latin1')["data"]
 
     print("-> Mono evaluation - using median scaling")
