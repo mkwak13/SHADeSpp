@@ -222,6 +222,10 @@ class MonodepthOptions:
           self.parser.add_argument("--visualize",
                                    help="if set will display ground truth and predicted depth maps during evaluation",
                                    action="store_true")
+          self.parser.add_argument("--viz_save_dir",
+                                   type=str,
+                                   help="optional directory to save visualization images when display is unavailable",
+                                   default=None)
 
         
         

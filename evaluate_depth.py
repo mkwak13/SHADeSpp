@@ -268,12 +268,34 @@ def evaluate(opt):
             gt_vis = depth_to_colormap(gt_depth)
             pred_vis = depth_to_colormap(pred_depth_my)
             combined = np.hstack((gt_vis, pred_vis))
-            cv2.imshow("gt vs pred", combined)
-            # wait a short time and allow quitting with 'q'
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                print("Stopping evaluation due to user request")
-                break
+
+            shown = False
+            if opt.viz_save_dir:
+                os.makedirs(opt.viz_save_dir, exist_ok=True)
+                fname = os.path.join(opt.viz_save_dir, f"viz_{i:06d}.png")
+                cv2.imwrite(fname, combined)
+                shown = True
+
+            if not shown:
+                try:
+                    cv2.imshow("gt vs pred", combined)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        print("Stopping evaluation due to user request")
+                        break
+                except cv2.error as e:
+                    # display not available (e.g. headless server)
+                    if opt.viz_save_dir is not None:
+                        # already saved above
+                        pass
+                    else:
+                        # create a default folder next to weights if possible
+                        save_folder = os.path.join(opt.load_weights_folder, "viz_images")
+                        os.makedirs(save_folder, exist_ok=True)
+                        fname = os.path.join(save_folder, f"viz_{i:06d}.png")
+                        cv2.imwrite(fname, combined)
+                        if i == 0:
+                            print(f"[warning] display unavailable, saving visualizations to {save_folder}")
 
         # Overall
         errors_all.append(
