@@ -253,6 +253,28 @@ def evaluate(opt):
         pred_depth_my[pred_depth_my < MIN_DEPTH] = MIN_DEPTH
         pred_depth_my[pred_depth_my > MAX_DEPTH] = MAX_DEPTH
 
+        # visualize or save visualizations if requested
+        if opt.visualize:
+            # convert a depth map to a colored image for easier viewing
+            def depth_to_colormap(dmap):
+                # normalize to 0..1
+                disp = dmap.copy().astype(np.float32)
+                disp = disp - disp.min()
+                if disp.max() > 0:
+                    disp = disp / disp.max()
+                disp = (255 * disp).astype(np.uint8)
+                return cv2.applyColorMap(disp, cv2.COLORMAP_JET)
+
+            gt_vis = depth_to_colormap(gt_depth)
+            pred_vis = depth_to_colormap(pred_depth_my)
+            combined = np.hstack((gt_vis, pred_vis))
+            cv2.imshow("gt vs pred", combined)
+            # wait a short time and allow quitting with 'q'
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                print("Stopping evaluation due to user request")
+                break
+
         # Overall
         errors_all.append(
             compute_errors(

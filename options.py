@@ -218,6 +218,11 @@ class MonodepthOptions:
                                         "from the original monodepth paper",
                                    action="store_true")
 
+          # Visualization
+          self.parser.add_argument("--visualize",
+                                   help="if set will display ground truth and predicted depth maps during evaluation",
+                                   action="store_true")
+
         
         
      def parse(self):

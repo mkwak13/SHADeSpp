@@ -53,6 +53,9 @@ python test_simple.py --split_path splits/hk/test_files.txt --image_path <your_i
 
 ```
 
+> **Tip:** during evaluation with `evaluate_depth.py` you can add `--visualize` to pop up a window displaying the ground truth and predicted depth maps side?by?side. Press `q` to quit early.
+
+
 - `<method_name>` can be `monovit`, `monodepth2`, or `IID` for MonoViT, Monodepth2, and SHADeS respectively. When using MonoViT or Monodepth2, set `--max_depth` to 100.
 
 - If testing on MonoViT, pLease download the ImageNet-1K pretrained MPViT [model](https://dl.dropbox.com/s/y3dnmmy8h4npz7a/mpvit_small.pth) to `./ckpt/`.
