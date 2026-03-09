@@ -285,7 +285,16 @@ def evaluate(opt):
 
             gt_vis = depth_to_colormap(gt_depth)
             pred_vis = depth_to_colormap(pred_depth_my)
-            combined = np.hstack((gt_vis, pred_vis))
+            
+            color_img = data[("color", 0, 0)][i].cpu().numpy()
+            color_img = np.transpose(color_img, (1, 2, 0))
+            color_img = (color_img * 255).astype(np.uint8)
+            color_img = cv2.resize(color_img, (gt_width, gt_height))
+            color_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
+
+            # RGB | GT | Pred
+            combined = np.hstack((color_img, gt_vis, pred_vis))
+
             tb_img = cv2.cvtColor(combined, cv2.COLOR_BGR2RGB)
             tb_img = torch.from_numpy(tb_img.transpose(2,0,1)).float() / 255.0
             writer.add_image("gt_vs_pred", tb_img, i)
