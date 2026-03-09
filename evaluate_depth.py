@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+from csv import writer
 import os
 import cv2
 import numpy as np
@@ -176,6 +177,11 @@ def evaluate(opt):
                 pred_disp, _ = disp_to_depth(output[("disp", 0)], opt.min_depth, opt.max_depth)
                 pred_disp = pred_disp.cpu()[:, 0].numpy()
                 mask_np = mask_soft.cpu()[:, 0].numpy()
+
+                if opt.post_process:
+                    N = mask_np.shape[0] // 2
+                    mask_np = mask_np[:N]
+
                 pred_masks.append(mask_np)
 
                 if opt.post_process:
@@ -281,7 +287,7 @@ def evaluate(opt):
             pred_vis = depth_to_colormap(pred_depth_my)
             combined = np.hstack((gt_vis, pred_vis))
             tb_img = cv2.cvtColor(combined, cv2.COLOR_BGR2RGB)
-            tb_img = tb_img.transpose(2, 0, 1) / 255.0
+            tb_img = torch.from_numpy(tb_img.transpose(2,0,1)).float() / 255.0
             writer.add_image("gt_vs_pred", tb_img, i)
 
         # Overall
