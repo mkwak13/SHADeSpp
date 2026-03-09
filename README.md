@@ -53,7 +53,7 @@ python test_simple.py --split_path splits/hk/test_files.txt --image_path <your_i
 
 ```
 
-> **Tip:** during evaluation with `evaluate_depth.py` you can add `--viz_tensorboard` to record ground truth and predicted depth maps in TensorBoard. The log directory can be specified with `--viz_tensorboard_dir` (or it defaults to the model log folder).
+> **Tip:** during evaluation with `evaluate_depth.py` you can add `--viz_tensorboard` to record ground truth and predicted depth maps in TensorBoard. The log directory can be specified with `--viz_tensorboard_dir` (or it defaults to the model log folder). After starting TensorBoard, select the **`IMAGES`** tab (filter to *Image* if the view defaults to scalars) to see the `gt_vs_pred` frames.
 
 
 - `<method_name>` can be `monovit`, `monodepth2`, or `IID` for MonoViT, Monodepth2, and SHADeS respectively. When using MonoViT or Monodepth2, set `--max_depth` to 100.

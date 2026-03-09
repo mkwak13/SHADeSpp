@@ -266,6 +266,23 @@ def evaluate(opt):
         pred_depth_my[pred_depth_my < MIN_DEPTH] = MIN_DEPTH
         pred_depth_my[pred_depth_my > MAX_DEPTH] = MAX_DEPTH
 
+        # tensorboard log
+        if writer is not None:
+            # convert depth maps to coloured images
+            def depth_to_colormap(dmap):
+                disp = dmap.copy().astype(np.float32)
+                disp -= disp.min()
+                if disp.max() > 0:
+                    disp /= disp.max()
+                disp = (255 * disp).astype(np.uint8)
+                return cv2.applyColorMap(disp, cv2.COLORMAP_JET)
+
+            gt_vis = depth_to_colormap(gt_depth)
+            pred_vis = depth_to_colormap(pred_depth_my)
+            combined = np.hstack((gt_vis, pred_vis))
+            tb_img = cv2.cvtColor(combined, cv2.COLOR_BGR2RGB)
+            tb_img = tb_img.transpose(2, 0, 1) / 255.0
+            writer.add_image("gt_vs_pred", tb_img, i)
 
         # Overall
         errors_all.append(
@@ -326,6 +343,8 @@ def evaluate(opt):
         print("No non-specular pixels detected")
         
     print("\n-> Done!")
+    if writer is not None:
+        writer.close()
 
 
 if __name__ == "__main__":
