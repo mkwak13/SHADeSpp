@@ -289,7 +289,6 @@ def evaluate(opt):
             tb_img = cv2.cvtColor(combined, cv2.COLOR_BGR2RGB)
             tb_img = torch.from_numpy(tb_img.transpose(2,0,1)).float() / 255.0
             writer.add_image("gt_vs_pred", tb_img, i)
-            writer.flush()
 
         # Overall
         errors_all.append(
