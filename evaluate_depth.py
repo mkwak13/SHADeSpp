@@ -72,7 +72,9 @@ def evaluate(opt):
 
         print("-> Loading weights from {}".format(opt.load_weights_folder))
 
-        filenames = readlines(os.path.join(splits_dir, opt.eval_split, "test_files.txt"))
+        # MUST REVERT LATER
+        #filenames = readlines(os.path.join(splits_dir, opt.eval_split, "test_files.txt"))
+        filenames = readlines(os.path.join(splits_dir, opt.eval_split, "val_files.txt"))
         encoder_path = os.path.join(opt.load_weights_folder, "encoder.pth")
         decoder_path = os.path.join(opt.load_weights_folder, "depth.pth")
 
@@ -210,7 +212,9 @@ def evaluate(opt):
         print("-> Saving predicted disparities to ", output_path)
         np.save(output_path, pred_disps)
 
-    gt_path = os.path.join(splits_dir, opt.eval_split, "gt_depths.npz")
+    # MUST CHANGE LATER
+    #gt_path = os.path.join(splits_dir, opt.eval_split, "gt_depths.npz")
+    gt_path = os.path.join(splits_dir, opt.eval_split, "val_gt_depths.npz")
     gt_depths = np.load(gt_path, fix_imports=True, encoding='latin1')["data"]
 
     print("-> Mono evaluation - using median scaling")
