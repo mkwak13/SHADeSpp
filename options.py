@@ -218,15 +218,6 @@ class MonodepthOptions:
                                         "from the original monodepth paper",
                                    action="store_true")
 
-          # visualization to tensorboard only
-          self.parser.add_argument("--viz_tensorboard",
-                                   help="if set will log gt/pred visualizations to tensorboard",
-                                   action="store_true")
-          self.parser.add_argument("--viz_tensorboard_dir",
-                                   type=str,
-                                   help="directory for tensorboard logs (used if --viz_tensorboard)",
-                                   default=None)
-
         
         
      def parse(self):

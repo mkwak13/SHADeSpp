@@ -1,6 +1,5 @@
 from __future__ import absolute_import, division, print_function
 
-from csv import writer
 import os
 import cv2
 import numpy as np
@@ -72,9 +71,7 @@ def evaluate(opt):
 
         print("-> Loading weights from {}".format(opt.load_weights_folder))
 
-        # MUST REVERT LATER
-        #filenames = readlines(os.path.join(splits_dir, opt.eval_split, "test_files.txt"))
-        filenames = readlines(os.path.join(splits_dir, opt.eval_split, "val_files.txt"))
+        filenames = readlines(os.path.join(splits_dir, opt.eval_split, "test_files.txt"))
         encoder_path = os.path.join(opt.load_weights_folder, "encoder.pth")
         decoder_path = os.path.join(opt.load_weights_folder, "depth.pth")
 
@@ -179,11 +176,6 @@ def evaluate(opt):
                 pred_disp, _ = disp_to_depth(output[("disp", 0)], opt.min_depth, opt.max_depth)
                 pred_disp = pred_disp.cpu()[:, 0].numpy()
                 mask_np = mask_soft.cpu()[:, 0].numpy()
-
-                if opt.post_process:
-                    N = mask_np.shape[0] // 2
-                    mask_np = mask_np[:N]
-
                 pred_masks.append(mask_np)
 
                 if opt.post_process:
@@ -212,24 +204,10 @@ def evaluate(opt):
         print("-> Saving predicted disparities to ", output_path)
         np.save(output_path, pred_disps)
 
-
     gt_path = os.path.join(splits_dir, opt.eval_split, "gt_depths.npz")
     gt_depths = np.load(gt_path, fix_imports=True, encoding='latin1')["data"]
 
     print("-> Mono evaluation - using median scaling")
-
-    # optional tensorboard writer for visualizations
-    writer = None
-    if opt.viz_tensorboard:
-        try:
-            from tensorboardX import SummaryWriter
-        except ImportError:
-            print("[warning] tensorboardX not installed, cannot log to tensorboard")
-        else:
-            tbdir = opt.viz_tensorboard_dir or opt.log_dir or os.path.join(opt.load_weights_folder, "tb_viz")
-            os.makedirs(tbdir, exist_ok=True)
-            writer = SummaryWriter(tbdir)
-            print(f"-> Tensorboard visualizations will be written to {tbdir}")
 
     errors_all = []
     errors_spec = []
@@ -274,32 +252,6 @@ def evaluate(opt):
 
         pred_depth_my[pred_depth_my < MIN_DEPTH] = MIN_DEPTH
         pred_depth_my[pred_depth_my > MAX_DEPTH] = MAX_DEPTH
-
-        # tensorboard log
-        if writer is not None and i < 10:
-            # convert depth maps to coloured images
-            def depth_to_colormap(dmap):
-                disp = dmap.copy().astype(np.float32)
-                disp -= disp.min()
-                if disp.max() > 0:
-                    disp /= disp.max()
-                disp = (255 * disp).astype(np.uint8)
-                return cv2.applyColorMap(disp, cv2.COLORMAP_JET)
-
-            gt_vis = depth_to_colormap(gt_depth)
-            pred_vis = depth_to_colormap(pred_depth_my)
-            
-            color_img = input_color[0].cpu().numpy()
-            color_img = np.transpose(color_img, (1, 2, 0))
-            color_img = (color_img * 255).astype(np.uint8)
-            color_img = cv2.resize(color_img, (gt_width, gt_height))
-
-            # RGB | GT | Pred
-            combined = np.hstack((color_img, gt_vis, pred_vis))
-
-            tb_img = cv2.cvtColor(combined, cv2.COLOR_BGR2RGB)
-            tb_img = torch.from_numpy(tb_img.transpose(2,0,1)).float() / 255.0
-            writer.add_image("gt_vs_pred", tb_img, i)
 
         # Overall
         errors_all.append(
@@ -360,8 +312,6 @@ def evaluate(opt):
         print("No non-specular pixels detected")
         
     print("\n-> Done!")
-    if writer is not None:
-        writer.close()
 
 
 if __name__ == "__main__":
