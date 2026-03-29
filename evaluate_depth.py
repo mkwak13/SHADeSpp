@@ -83,7 +83,7 @@ def evaluate(opt):
                                             [0], 4, is_train=False)
             dataloader = DataLoader(dataset, 16, shuffle=False, num_workers=opt.num_workers,
                                     pin_memory=True, drop_last=False)
-        elif opt.eval_split=="c3vd":
+        elif opt.eval_split in ["c3vd", "c3vdv2"]:
             dataset = datasets.C3VDDataset(
                 opt.data_path if isinstance(opt.data_path, str) else opt.data_path[0],
                 filenames,
