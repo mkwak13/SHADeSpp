@@ -76,7 +76,10 @@ def inference(opt):
     print("-> Running inference...")
 
     with torch.no_grad():
-        for idx, img_path in enumerate(filenames):
+
+        step = 0
+
+        for img_path in filenames:
 
             img = cv2.imread(img_path)
             if img is None:
@@ -112,7 +115,7 @@ def inference(opt):
             writer.add_image(
                 "disp",
                 disp_color,
-                global_step=idx,
+                global_step=step,
                 dataformats='HWC'
             )
 
@@ -122,9 +125,11 @@ def inference(opt):
             writer.add_image(
                 "input",
                 img_np,
-                global_step=idx,
+                global_step=step,
                 dataformats='HWC'
             )
+
+            step += 1
 
     writer.close()
     print("-> Done (TensorBoard)")
