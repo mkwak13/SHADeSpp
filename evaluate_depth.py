@@ -1,4 +1,5 @@
 from __future__ import absolute_import, division, print_function
+from torch.utils.tensorboard import SummaryWriter
 
 import os
 import cv2
@@ -174,6 +175,24 @@ def evaluate(opt):
 
                 output = depth_decoder(encoder(depth_input))
                 pred_disp, _ = disp_to_depth(output[("disp", 0)], opt.min_depth, opt.max_depth)
+
+                # ===== ADD START =====
+                save_dir_vis = os.path.join(opt.load_weights_folder, "disp_vis")
+                if not os.path.exists(save_dir_vis):
+                    os.makedirs(save_dir_vis)
+
+                for b in range(pred_disp.shape[0]):
+                    disp_np = pred_disp[b, 0].cpu().numpy()
+                    disp_norm = (disp_np - disp_np.min()) / (disp_np.max() - disp_np.min() + 1e-8)
+                    disp_color = (disp_norm * 255).astype(np.uint8)
+                    disp_color = cv2.applyColorMap(disp_color, cv2.COLORMAP_MAGMA)
+
+                    cv2.imwrite(
+                        os.path.join(save_dir_vis, f"{len(pred_disps)*pred_disp.shape[0] + b:06d}.png"),
+                        disp_color
+                    )
+                # ===== ADD END =====
+
                 pred_disp = pred_disp.cpu()[:, 0].numpy()
                 mask_np = mask_soft.cpu()[:, 0].numpy()
                 pred_masks.append(mask_np)
