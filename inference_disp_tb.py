@@ -104,11 +104,16 @@ def inference(opt):
             # normalize for visualization
             disp_norm = (disp_np - disp_np.min()) / (disp_np.max() - disp_np.min() + 1e-8)
 
+            disp_color = (disp_norm * 255).astype(np.uint8)
+            disp_color = cv2.applyColorMap(disp_color, cv2.COLORMAP_MAGMA)
+
+            disp_color = cv2.cvtColor(disp_color, cv2.COLOR_BGR2RGB)
+
             writer.add_image(
                 "disp",
-                disp_norm,
+                disp_color,
                 global_step=idx,
-                dataformats='HW'
+                dataformats='HWC'
             )
 
     writer.close()
