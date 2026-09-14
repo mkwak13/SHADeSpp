@@ -1,0 +1,43 @@
+{
+  "_comment": "Example config for evaluate_endomapper.py / visualize_endomapper.py. TODO(endomapper-data): fill in the fields below once the EndoMapper download (pending Synapse approval) is available.",
+
+  "data_root": "datasets/EndoMapper",
+  "_data_root_comment": "TODO: point this at the real EndoMapper download directory, containing one subdirectory per sequence (e.g. Seq_001/).",
+
+  "sequences": null,
+  "_sequences_comment": "null = auto-discover every sequence under data_root that has a COLMAP model; or give an explicit list, e.g. [\"Seq_001\", \"Seq_002\"].",
+
+  "colmap_subdir": "meta-data/colmap",
+  "_colmap_subdir_comment": "Path (relative to each sequence dir) to the folder containing cameras/images/points3D.{bin,txt}. TODO: confirm against the real download.",
+
+  "frames_subdir": null,
+  "_frames_subdir_comment": "TODO: subdirectory (relative to each sequence dir) containing the video frames referenced by images.bin/txt. null makes EndoMapperSequence try a few common guesses (frames/, images/, rgb/, sequence root) -- set this explicitly once known.",
+
+  "img_ext": null,
+  "_img_ext_comment": "TODO: frame file extension if it differs from what's stored in the COLMAP image NAME field (e.g. if frames were re-extracted as .png but COLMAP was run on .jpg).",
+
+  "min_depth": 0.1,
+  "max_depth": 150.0,
+  "num_layers": 18,
+
+  "min_points_per_frame": 20,
+  "_min_points_per_frame_comment": "Frames with fewer valid reprojected sparse points than this are skipped in evaluate_endomapper.py and flagged in visualize_endomapper.py's health summary.",
+
+  "output_dir": "outputs/endomapper_eval",
+
+  "models": [
+    {
+      "name": "SHADeS",
+      "load_weights_folder": "ckpt/finetuned_mono_hkfull_288_pseudo_dsms_automasking_noadjust/weights_19",
+      "num_layers": 18,
+      "is_shadespp": false
+    },
+    {
+      "name": "SHADeS++",
+      "load_weights_folder": "TODO/path/to/a/checkpoint/whose/folder/name/contains/shadespp/weights_XX",
+      "_comment": "TODO: point this at a real SHADeS++ checkpoint (trained with one of configs/shadespp_tau*.json). `is_shadespp` is auto-detected from \"shadespp\" appearing in load_weights_folder, matching evaluate_depth.py's convention -- set it explicitly here if your folder naming differs.",
+      "num_layers": 18,
+      "is_shadespp": true
+    }
+  ]
+}
