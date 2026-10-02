@@ -37,8 +37,7 @@
     },
     {
       "name": "SHADeS++",
-      "load_weights_folder": "TODO/path/to/a/checkpoint/whose/folder/name/contains/shadespp/weights_XX",
-      "_comment": "TODO: point this at a real SHADeS++ checkpoint (trained with one of configs/shadespp_tau*.json). `is_shadespp` is auto-detected from \"shadespp\" appearing in load_weights_folder, matching evaluate_depth.py's convention -- set it explicitly here if your folder naming differs.",
+      "load_weights_folder": "models/shadespp/v_tau050/models/weights_19",
       "num_layers": 18,
       "is_shadespp": true
     }
