@@ -3,16 +3,17 @@ evaluation pipeline (datasets/colmap_utils.py, datasets/EndoMapper_dataset.py,
 evaluate_endomapper.py, visualize_endomapper.py) without needing real
 EndoMapper data.
 
-Writes:
-    <out_dir>/<seq_name>/frames/000000.png, 000001.png, ...
-    <out_dir>/<seq_name>/meta-data/colmap/cameras.txt
-    <out_dir>/<seq_name>/meta-data/colmap/images.txt
-    <out_dir>/<seq_name>/meta-data/colmap/points3D.txt
+Matches the real downloaded layout:
+
+    <out_dir>/colmap_benchmark_frames/<patient_id>/<subseq_id>/<name>.png
+    <out_dir>/pseudoGT/<patient_id>/<subseq_id>/0/{cameras,images,points3D}.bin
 
 The camera moves along +Z with identity rotation; 3D points are randomly
 scattered in front of it, so reprojections are geometrically consistent
 (this exercises the real projection math in colmap_utils, not just file
-parsing).
+parsing). Uses OPENCV_FISHEYE (zero distortion) as the camera model, matching
+the real data, so the "observed pixel == distorted projection" pipeline gets
+exercised the same way it will be on real EndoMapper sequences.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -23,7 +24,7 @@ import numpy as np
 from PIL import Image
 
 
-def generate(out_dir, seq_name="Seq_TEST", n_frames=8, n_points=400,
+def generate(out_dir, patient_id="99999", subseq_id="0", n_frames=8, n_points=400,
              width=288, height=288, seed=0):
     rng = np.random.RandomState(seed)
 
@@ -39,9 +40,8 @@ def generate(out_dir, seq_name="Seq_TEST", n_frames=8, n_points=400,
     ], axis=1)
     point_colors = rng.randint(0, 255, size=(n_points, 3))
 
-    seq_dir = os.path.join(out_dir, seq_name)
-    frames_dir = os.path.join(seq_dir, "frames")
-    colmap_dir = os.path.join(seq_dir, "meta-data", "colmap")
+    frames_dir = os.path.join(out_dir, "colmap_benchmark_frames", patient_id, subseq_id)
+    colmap_dir = os.path.join(out_dir, "pseudoGT", patient_id, subseq_id, "0")
     os.makedirs(frames_dir, exist_ok=True)
     os.makedirs(colmap_dir, exist_ok=True)
 
@@ -50,9 +50,13 @@ def generate(out_dir, seq_name="Seq_TEST", n_frames=8, n_points=400,
 
     per_image_obs = []  # list of (image_id, [(u, v, point3D_id), ...])
     point_tracks = {pid: [] for pid in range(n_points)}  # pid -> [(image_id, point2D_idx), ...]
+    frame_names = []
 
     for i, t in enumerate(translations):
         image_id = i + 1
+        name = "frame_{:06d}.png".format(i)
+        frame_names.append(name)
+
         xyz_cam = points_world + t[None, :]  # R = I
         depth = xyz_cam[:, 2]
         in_front = depth > 0.1
@@ -71,20 +75,21 @@ def generate(out_dir, seq_name="Seq_TEST", n_frames=8, n_points=400,
         # Fake RGB frame (content is irrelevant for the smoke test -- only
         # used to exercise real model inference on a real-sized image).
         img = rng.randint(0, 255, size=(height, width, 3), dtype=np.uint8)
-        Image.fromarray(img).save(os.path.join(frames_dir, "{:06d}.png".format(i)))
+        Image.fromarray(img).save(os.path.join(frames_dir, name))
 
-    # --- cameras.txt ---
+    # --- cameras.txt (OPENCV_FISHEYE, zero distortion -- matches real EndoMapper's camera
+    #     model, but with linear-projection-equivalent params so this fixture's observed
+    #     pixels stay consistent with the simple pinhole math used to generate them) ---
     with open(os.path.join(colmap_dir, "cameras.txt"), "w") as f:
-        f.write("# CAMERA_ID MODEL WIDTH HEIGHT PARAMS[fx,fy,cx,cy]\n")
-        f.write("1 PINHOLE {} {} {} {} {} {}\n".format(width, height, fx, fy, cx, cy))
+        f.write("# CAMERA_ID MODEL WIDTH HEIGHT PARAMS[fx,fy,cx,cy,k1,k2,k3,k4]\n")
+        f.write("1 OPENCV_FISHEYE {} {} {} {} {} {} 0 0 0 0\n".format(width, height, fx, fy, cx, cy))
 
     # --- images.txt ---
     with open(os.path.join(colmap_dir, "images.txt"), "w") as f:
         f.write("# IMAGE_ID QW QX QY QZ TX TY TZ CAMERA_ID NAME\n")
         f.write("# POINTS2D[] as (X, Y, POINT3D_ID)\n")
-        for i, (t, obs) in enumerate(zip(translations, per_image_obs)):
+        for i, (t, obs, name) in enumerate(zip(translations, per_image_obs, frame_names)):
             image_id = i + 1
-            name = "frames/{:06d}.png".format(i)
             f.write("{} 1.0 0.0 0.0 0.0 {} {} {} 1 {}\n".format(
                 image_id, t[0], t[1], t[2], name))
             f.write(" ".join("{} {} {}".format(u, v, pid) for u, v, pid in obs) + "\n")
@@ -101,22 +106,23 @@ def generate(out_dir, seq_name="Seq_TEST", n_frames=8, n_points=400,
             track_str = " ".join("{} {}".format(img_id, idx) for img_id, idx in track)
             f.write("{} {} {} {} {} {} {} {} {}\n".format(pid, x, y, z, r, g, b, 0.5, track_str))
 
-    return seq_dir
+    return "{}/{}".format(patient_id, subseq_id)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out_dir", type=str, required=True)
-    parser.add_argument("--seq_name", type=str, default="Seq_TEST")
+    parser.add_argument("--patient_id", type=str, default="99999")
+    parser.add_argument("--subseq_id", type=str, default="0")
     parser.add_argument("--n_frames", type=int, default=8)
     parser.add_argument("--n_points", type=int, default=400)
     parser.add_argument("--width", type=int, default=288)
     parser.add_argument("--height", type=int, default=288)
     args = parser.parse_args()
 
-    seq_dir = generate(args.out_dir, args.seq_name, args.n_frames, args.n_points,
-                        args.width, args.height)
-    print("Wrote fake sequence to", seq_dir)
+    seq_name = generate(args.out_dir, args.patient_id, args.subseq_id, args.n_frames,
+                         args.n_points, args.width, args.height)
+    print("Wrote fake sequence {} to {}".format(seq_name, args.out_dir))
 
 
 if __name__ == "__main__":

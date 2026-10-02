@@ -1,29 +1,32 @@
 {
-  "_comment": "Example config for evaluate_endomapper.py / visualize_endomapper.py. TODO(endomapper-data): fill in the fields below once the EndoMapper download (pending Synapse approval) is available.",
+  "_comment": "Config for evaluate_endomapper.py / visualize_endomapper.py, matching the real downloaded EndoMapper layout under datasets/EndoMapper/{pseudoGT,colmap_benchmark_frames}/<patient_id>/<subseq_id>/.",
 
   "data_root": "datasets/EndoMapper",
-  "_data_root_comment": "TODO: point this at the real EndoMapper download directory, containing one subdirectory per sequence (e.g. Seq_001/).",
 
   "sequences": null,
-  "_sequences_comment": "null = auto-discover every sequence under data_root that has a COLMAP model; or give an explicit list, e.g. [\"Seq_001\", \"Seq_002\"].",
+  "_sequences_comment": "null = auto-discover every \"<patient_id>/<subseq_id>\" that has both a COLMAP model and a frames dir (161 as of the first download batch, across 8 patients). Or give an explicit list, e.g. [\"00033/13\", \"00034/14\"].",
 
-  "colmap_subdir": "meta-data/colmap",
-  "_colmap_subdir_comment": "Path (relative to each sequence dir) to the folder containing cameras/images/points3D.{bin,txt}. TODO: confirm against the real download.",
+  "colmap_root": "pseudoGT",
+  "_colmap_root_comment": "data_root/colmap_root/<patient_id>/<subseq_id>/ holds the COLMAP reconstruction (cameras/images/points3D, under colmap_model_subdir as .bin, or directly as sibling .txt files).",
 
-  "frames_subdir": null,
-  "_frames_subdir_comment": "TODO: subdirectory (relative to each sequence dir) containing the video frames referenced by images.bin/txt. null makes EndoMapperSequence try a few common guesses (frames/, images/, rgb/, sequence root) -- set this explicitly once known.",
+  "frames_root": "colmap_benchmark_frames",
+  "_frames_root_comment": "data_root/frames_root/<patient_id>/<subseq_id>/ holds the frame PNGs COLMAP's images.txt/bin NAME field refers to directly (no extra subdirectory prefix).",
 
-  "img_ext": null,
-  "_img_ext_comment": "TODO: frame file extension if it differs from what's stored in the COLMAP image NAME field (e.g. if frames were re-extracted as .png but COLMAP was run on .jpg).",
+  "colmap_model_subdir": "0",
+  "_colmap_model_subdir_comment": "COLMAP's binary export lives one level deeper than the text export, in a numbered model directory (always \"0\" for every sequence seen so far). Falls back to the parent directory's .txt files if \"0\" isn't a valid model.",
 
   "min_depth": 0.1,
   "max_depth": 150.0,
   "num_layers": 18,
 
   "min_points_per_frame": 20,
-  "_min_points_per_frame_comment": "Frames with fewer valid reprojected sparse points than this are skipped in evaluate_endomapper.py and flagged in visualize_endomapper.py's health summary.",
+  "_min_points_per_frame_comment": "Frames with fewer valid sparse points than this are skipped in evaluate_endomapper.py and flagged in visualize_endomapper.py's health summary.",
 
   "output_dir": "outputs/endomapper_eval",
+
+  "_cameras_comment": "EndoMapper cameras are OPENCV_FISHEYE. get_sparse_depth() samples COLMAP's actual detected keypoint pixels (not a re-projection through the distortion model), so this works correctly as-is.",
+
+  "_undistortion_comment": "NOTE: SHADeS/SHADeS++ were trained on UNDISTORTED C3VD/Hyper-Kvasir frames (see prepare_data/README.md). These EndoMapper frames are raw fisheye-distorted video -- there is a train/eval domain gap until they're undistorted the same way before being fed to the model. Not handled yet; flag if you want this added (cv2.fisheye.* using each sequence's own OPENCV_FISHEYE params, already parsed by datasets/colmap_utils.py).",
 
   "models": [
     {

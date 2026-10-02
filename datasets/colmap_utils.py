@@ -282,3 +282,38 @@ def project_points_to_image(image, camera, points3D, min_depth=1e-6):
     pixels = uvw[:, :2] / uvw[:, 2:3]
 
     return pixels, depths, valid_ids
+
+
+def observed_points_with_depth(image, points3D, min_depth=1e-6):
+    """Sparse (pixel, depth) pairs for the 3D points visible in `image`, using
+    the *actual detected keypoint locations* (`image.xys`) rather than a
+    fresh projection through the camera's intrinsics/distortion model.
+
+    This is what you want whenever the camera has lens distortion (e.g.
+    EndoMapper's OPENCV_FISHEYE cameras): `image.xys` already lives in real,
+    distorted pixel coordinates matching the raw frame on disk, so sampling a
+    predicted depth map at these pixels is correct without needing to
+    implement the camera model's distortion ourselves. Depth itself never
+    involves the intrinsics/distortion -- it's just the point's Z coordinate
+    after transforming into camera space with (R, t) -- so no camera object
+    is required here, unlike `project_points_to_image`.
+
+    Returns:
+        pixels: (N, 2) array of (u, v) pixel coordinates, as detected by COLMAP
+        depths: (N,) array of camera-space depth (Z) for each point
+        point3D_ids: (N,) array of the corresponding point3D ids
+    """
+    R = qvec2rotmat(image.qvec)
+    t = image.tvec
+
+    valid = image.point3D_ids != -1
+    if not valid.any():
+        return (np.zeros((0, 2)), np.zeros((0,)), np.zeros((0,), dtype=int))
+
+    pixels = image.xys[valid]
+    point3D_ids = image.point3D_ids[valid]
+    xyz_world = np.stack([points3D[pid].xyz for pid in point3D_ids], axis=0)
+    depths = ((R @ xyz_world.T).T + t[None, :])[:, 2]
+
+    in_front = depths > min_depth
+    return pixels[in_front], depths[in_front], point3D_ids[in_front]

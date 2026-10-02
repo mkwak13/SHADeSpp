@@ -15,9 +15,9 @@ Usage:
     # Just check reconstruction quality, no images written:
     python visualize_endomapper.py --config configs/endomapper_example.json --health_only
 
-    # Full visualization for a couple of sequences, one frame in 10:
+    # Full visualization for one sequence (patient 00033, sub-sequence 13), one frame in 10:
     python visualize_endomapper.py --config configs/endomapper_example.json \
-        --seq Seq_001 --frame_stride 10 --max_frames 50
+        --seq 00033/13 --frame_stride 10 --max_frames 50
 """
 from __future__ import absolute_import, division, print_function
 
@@ -158,7 +158,8 @@ def main():
             "data_root '{}' does not exist -- point it at the real EndoMapper directory once "
             "downloaded.".format(data_root))
 
-    seq_names = args.seq or cfg["sequences"] or list_sequences(data_root, cfg["colmap_subdir"])
+    seq_names = args.seq or cfg["sequences"] or list_sequences(
+        data_root, cfg["colmap_root"], cfg["frames_root"], cfg["colmap_model_subdir"])
     print("-> Found {} sequence(s): {}".format(len(seq_names), seq_names))
 
     device = torch.device("cuda" if (torch.cuda.is_available() and not args.no_cuda) else "cpu")
@@ -177,9 +178,9 @@ def main():
         try:
             seq = EndoMapperSequence(
                 data_root, seq_name,
-                colmap_subdir=cfg["colmap_subdir"],
-                frames_subdir=cfg["frames_subdir"],
-                img_ext=cfg["img_ext"])
+                colmap_root=cfg["colmap_root"],
+                frames_root=cfg["frames_root"],
+                colmap_model_subdir=cfg["colmap_model_subdir"])
         except FileNotFoundError as e:
             print("  SKIPPING sequence: {}".format(e))
             continue

@@ -3,8 +3,8 @@ reconstructions from EndoMapper sequences.
 
 For every frame COLMAP registered in a sequence:
   1. run monocular depth inference (shades_inference.run_inference)
-  2. reproject that frame's sparse COLMAP points to get (pixel, depth) pairs
-     (datasets/EndoMapper_dataset.py + datasets/colmap_utils.py)
+  2. get that frame's sparse COLMAP points at their detected pixel locations
+     + camera-space depth (datasets/EndoMapper_dataset.py + datasets/colmap_utils.py)
   3. sample the predicted depth map at those sparse pixel locations
   4. per-frame median-ratio scale alignment, exactly as `evaluate_depth.py`
      does for C3VD/C3VDv2 (ratio = median(gt) / median(pred) over the valid
@@ -12,9 +12,12 @@ For every frame COLMAP registered in a sequence:
   5. compute AbsRel/RMSE (and the other `compute_errors` metrics) at the
      sparse point locations only
 
+A "sequence" is one (patient_id, subseq_id) COLMAP reconstruction, e.g.
+"00033/13" for datasets/EndoMapper/pseudoGT/00033/13/.
+
 Usage:
     python evaluate_endomapper.py --config configs/endomapper_example.json
-    python evaluate_endomapper.py --config configs/endomapper_example.json --seq Seq_001 Seq_002
+    python evaluate_endomapper.py --config configs/endomapper_example.json --seq 00033/13 00034/14
 
 NOTE: COLMAP reconstructions are only defined up to an arbitrary global
 scale (and, for EndoMapper, that scale is whatever the SfM solve happened to
@@ -60,9 +63,9 @@ def parse_args():
 def load_config(path):
     with open(path, "r") as f:
         cfg = json.load(f)
-    cfg.setdefault("colmap_subdir", "meta-data/colmap")
-    cfg.setdefault("frames_subdir", None)
-    cfg.setdefault("img_ext", None)
+    cfg.setdefault("colmap_root", "pseudoGT")
+    cfg.setdefault("frames_root", "colmap_benchmark_frames")
+    cfg.setdefault("colmap_model_subdir", "0")
     cfg.setdefault("min_depth", 0.1)
     cfg.setdefault("max_depth", 150.0)
     cfg.setdefault("num_layers", 18)
@@ -186,11 +189,13 @@ def main():
             "finishes; point `data_path`/config['data_root'] at the real directory once you have "
             "it.".format(data_root))
 
-    seq_names = args.seq or cfg["sequences"] or list_sequences(data_root, cfg["colmap_subdir"])
+    seq_names = args.seq or cfg["sequences"] or list_sequences(
+        data_root, cfg["colmap_root"], cfg["frames_root"], cfg["colmap_model_subdir"])
     if len(seq_names) == 0:
         raise RuntimeError(
-            "No sequences found under {} (looked for a '{}' subdirectory in each). Check "
-            "data_root / colmap_subdir in the config.".format(data_root, cfg["colmap_subdir"]))
+            "No sequences found under {} (looked for matching '{}/<patient>/<subseq>' and "
+            "'{}/<patient>/<subseq>' directories). Check data_root / colmap_root / frames_root "
+            "in the config.".format(data_root, cfg["colmap_root"], cfg["frames_root"]))
     print("-> Found {} sequence(s): {}".format(len(seq_names), seq_names))
 
     print("-> Loading {} model(s)".format(len(cfg["models"])))
@@ -211,9 +216,9 @@ def main():
         try:
             seq = EndoMapperSequence(
                 data_root, seq_name,
-                colmap_subdir=cfg["colmap_subdir"],
-                frames_subdir=cfg["frames_subdir"],
-                img_ext=cfg["img_ext"])
+                colmap_root=cfg["colmap_root"],
+                frames_root=cfg["frames_root"],
+                colmap_model_subdir=cfg["colmap_model_subdir"])
         except FileNotFoundError as e:
             print("  SKIPPING sequence: {}".format(e))
             continue
