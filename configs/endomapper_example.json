@@ -27,9 +27,13 @@
   "min_gt_depth_ratio": 0.05,
   "_min_gt_depth_ratio_comment": "Sparse COLMAP points with depth below this fraction of the frame's own median depth are dropped before computing errors -- filters out near-zero-depth triangulation artifacts (observed directly: one sequence had points at depth 0.018 against a frame median of ~21), which otherwise dominate sq_rel/RMSE since those metrics divide by gt. Applied to GT only, identically for every model.",
 
-  "_cameras_comment": "EndoMapper cameras are OPENCV_FISHEYE. get_sparse_depth() samples COLMAP's actual detected keypoint pixels (not a re-projection through the distortion model), so this works correctly as-is.",
+  "_cameras_comment": "EndoMapper cameras are OPENCV_FISHEYE. get_sparse_depth() samples COLMAP's actual detected keypoint pixels (not a re-projection through the distortion model), so this is correct regardless of undistortion.",
 
-  "_undistortion_comment": "NOTE: SHADeS/SHADeS++ were trained on UNDISTORTED C3VD/Hyper-Kvasir frames (see prepare_data/README.md). These EndoMapper frames are raw fisheye-distorted video -- there is a train/eval domain gap until they're undistorted the same way before being fed to the model. Not handled yet; flag if you want this added (cv2.fisheye.* using each sequence's own OPENCV_FISHEYE params, already parsed by datasets/colmap_utils.py).",
+  "undistort": true,
+  "_undistort_comment": "SHADeS/SHADeS++ were trained on UNDISTORTED C3VD/Hyper-Kvasir frames (see prepare_data/README.md); raw fisheye EndoMapper video is a real train/inference domain gap. When true, each frame is undistorted with its own camera's OPENCV_FISHEYE params (datasets/colmap_utils.build_undistort_map) before inference, and GT sparse points are mapped into the same undistorted pixel space. Set false to compare against the old raw-frame behavior.",
+
+  "undistort_balance": 0.0,
+  "_undistort_balance_comment": "cv2.fisheye's balance parameter: 0.0 = no black borders (some FOV cropped at the edges, matching training images which have no black borders); 1.0 = full original FOV kept, with black corners.",
 
   "models": [
     {
@@ -40,7 +44,7 @@
     },
     {
       "name": "SHADeS++",
-      "load_weights_folder": "models/shadespp/v_tau050/models/weights_19",
+      "load_weights_folder": "models/shadespp/v_tau050_scaled_c4/models/weights_4",
       "num_layers": 18,
       "is_shadespp": true
     }

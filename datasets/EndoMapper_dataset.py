@@ -41,6 +41,8 @@ from __future__ import absolute_import, division, print_function
 
 import os
 
+import cv2
+import numpy as np
 import PIL.Image as pil
 
 from . import colmap_utils
@@ -137,6 +139,8 @@ class EndoMapperSequence(object):
                 "COLMAP model at {} has {} registered images, but none of their frame files "
                 "could be found under {}.".format(self.colmap_dir, len(self.images), self.frames_dir))
 
+        self._undistort_cache = {}  # camera_id -> (map1, map2, new_K)
+
     def __len__(self):
         return len(self._image_ids)
 
@@ -154,10 +158,42 @@ class EndoMapperSequence(object):
     def load_image(self, image_id):
         return pil_loader(self._frame_paths[image_id])
 
-    def get_sparse_depth(self, image_id, min_depth=1e-6):
+    def _get_undistort_maps(self, camera, balance=0.0):
+        key = (camera.id, balance)
+        if key not in self._undistort_cache:
+            self._undistort_cache[key] = colmap_utils.build_undistort_map(camera, balance=balance)
+        return self._undistort_cache[key]
+
+    def load_image_undistorted(self, image_id, balance=0.0):
+        """Undistort this frame using its camera's own OPENCV_FISHEYE
+        parameters (a no-op, returning the original image + K, for cameras
+        that aren't fisheye-distorted). Use alongside `get_sparse_depth`'s
+        `undistort=True` so predicted depth and GT points stay in the same
+        pixel space.
+
+        Returns (PIL.Image, new_K) -- new_K is the camera matrix of the
+        undistorted image (3x3), needed to also map GT points into its space.
+        """
+        image = self.images[image_id]
+        camera = self.cameras[image.camera_id]
+        map1, map2, new_K = self._get_undistort_maps(camera, balance=balance)
+        if map1 is None:
+            return self.load_image(image_id), new_K
+
+        img_bgr = cv2.imread(self._frame_paths[image_id])
+        undist_bgr = colmap_utils.undistort_image(img_bgr, map1, map2)
+        undist_rgb = cv2.cvtColor(undist_bgr, cv2.COLOR_BGR2RGB)
+        return pil.fromarray(undist_rgb), new_K
+
+    def get_sparse_depth(self, image_id, min_depth=1e-6, undistort=False, balance=0.0):
         """Sparse COLMAP points visible in this frame, at their actual
         detected pixel locations (correct even for the fisheye-distorted
         EndoMapper cameras -- see colmap_utils.observed_points_with_depth).
+
+        Pass `undistort=True` (matching `load_image_undistorted`'s `balance`)
+        to get pixel coordinates in the *undistorted* image's pixel space --
+        required if the depth map you're comparing against was predicted on
+        an undistorted frame.
 
         Returns:
             pixels: (N, 2) float array of (u, v) pixel coordinates
@@ -165,7 +201,13 @@ class EndoMapperSequence(object):
             point3D_ids: (N,) int array of COLMAP point3D ids
         """
         image = self.images[image_id]
-        return colmap_utils.observed_points_with_depth(image, self.points3D, min_depth=min_depth)
+        pixels, depths, point3D_ids = colmap_utils.observed_points_with_depth(
+            image, self.points3D, min_depth=min_depth)
+        if undistort and pixels.shape[0] > 0:
+            camera = self.cameras[image.camera_id]
+            pixels = colmap_utils.undistort_points(pixels, camera,
+                                                     self._get_undistort_maps(camera, balance)[2])
+        return pixels, depths, point3D_ids
 
     def __iter__(self):
         for image_id in self._image_ids:

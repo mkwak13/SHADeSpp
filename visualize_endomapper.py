@@ -125,8 +125,16 @@ def draw_points_overlay(base_bgr, pixels, values, in_bounds, radius=3):
 
 
 def make_frame_row(model_name, frame_path, out):
-    """[input | depth colormap | depth colormap + COLMAP overlay] row for one model."""
-    input_bgr = cv2.imread(frame_path)
+    """[input | depth colormap | depth colormap + COLMAP overlay] row for one model.
+
+    Shows whatever image was actually fed to the model (the undistorted frame,
+    when undistortion is on) rather than always re-reading the raw frame_path,
+    so the input panel visually matches the depth map next to it.
+    """
+    if out.get("input_rgb_used") is not None:
+        input_bgr = cv2.cvtColor(out["input_rgb_used"], cv2.COLOR_RGB2BGR)
+    else:
+        input_bgr = cv2.imread(frame_path)
     h, w = out["pred_depth"].shape[:2]
     if input_bgr.shape[:2] != (h, w):
         input_bgr = cv2.resize(input_bgr, (w, h))
@@ -200,7 +208,8 @@ def main():
             rows = []
             for model_name, model in loaded_models.items():
                 out = evaluate_frame(model, seq, image_id, cfg["min_depth"], cfg["max_depth"], min_points=0,
-                                      min_gt_depth_ratio=cfg["min_gt_depth_ratio"])
+                                      min_gt_depth_ratio=cfg["min_gt_depth_ratio"],
+                                      undistort=cfg["undistort"], undistort_balance=cfg["undistort_balance"])
                 if out is None:
                     continue
                 if out.get("skipped"):

@@ -1,0 +1,31 @@
+{
+  "_comment": "Fine-tune SHADeS++ on real EndoMapper video (self-supervised -- no GT depth needed, same photometric-reprojection training as everything else here) to address the color/saturation domain gap diagnosed vs. plain SHADeS (trained on real Hyper-Kvasir tissue) vs. SHADeS++-so-far (trained only on C3VD phantom footage, ~65% lower saturation than real tissue). Resumes from v_tau050_scaled_c4 (best C3VD/C3VDv2 checkpoint so far). Trains on 656 pre-undistorted frames from 5 EndoMapper sequences (prepare_data/cache_endomapper_undistorted.py), none overlapping with the 10 sequences used for evaluation.",
+
+  "model_name": "v_tau050_endomapper_c1",
+  "log_dir": "models/shadespp",
+  "tau": 0.50,
+  "decomp_recon_weight": 0.3,
+  "reflec_constraint": 1.0,
+  "reprojection_constraint": 1.0,
+
+  "data_path": "datasets/EndoMapper_undistorted",
+  "split": "endomapper",
+  "dataset": "endomapper",
+  "height": 288,
+  "width": 288,
+  "png": true,
+
+  "automasking": true,
+  "noadjust": false,
+
+  "no_cuda": true,
+  "batch_size": 4,
+  "num_workers": 4,
+  "log_frequency": 25,
+
+  "load_weights_folder": "models/shadespp/v_tau050_scaled_c4/models/weights_4",
+  "models_to_load": ["encoder", "depth", "decompose_encoder", "decompose", "pose_encoder", "pose", "adjust_net"],
+
+  "save_frequency": 1,
+  "num_epochs": 5
+}

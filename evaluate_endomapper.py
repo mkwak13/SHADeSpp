@@ -39,7 +39,7 @@ import torch
 
 from datasets.EndoMapper_dataset import EndoMapperSequence, list_sequences
 from evaluate_depth import compute_errors
-from shades_inference import load_shades_model, run_inference
+from shades_inference import load_shades_model, run_inference, preprocess_image, infer_depth
 
 METRIC_COLS = ["abs_diff", "abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"]
 
@@ -71,6 +71,8 @@ def load_config(path):
     cfg.setdefault("num_layers", 18)
     cfg.setdefault("min_points_per_frame", 20)
     cfg.setdefault("min_gt_depth_ratio", 0.05)
+    cfg.setdefault("undistort", True)
+    cfg.setdefault("undistort_balance", 0.0)
     cfg.setdefault("output_dir", "outputs/endomapper_eval")
     cfg.setdefault("sequences", None)
     return cfg
@@ -90,17 +92,34 @@ def sample_pred_at_points(pred_depth, pixels):
     return sampled, in_bounds
 
 
-def evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points, min_gt_depth_ratio=0.05):
+def evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points, min_gt_depth_ratio=0.05,
+                    undistort=True, undistort_balance=0.0):
     """Run inference + sparse-depth comparison for a single frame.
 
     Returns a dict of results, or None if the frame doesn't have enough
     valid sparse points to evaluate.
+
+    If `undistort` is set, the frame is undistorted using its own camera's
+    OPENCV_FISHEYE parameters before being fed to the model -- SHADeS/SHADeS++
+    were trained on undistorted C3VD/Hyper-Kvasir frames, so feeding them raw
+    fisheye-distorted EndoMapper video is a real train/inference domain gap.
+    GT sparse points are mapped into the same undistorted pixel space so the
+    comparison stays geometrically consistent (a no-op for non-fisheye cameras).
     """
     frame_path = seq.frame_path(image_id)
-    result = run_inference(model, frame_path, min_depth=min_depth, max_depth=max_depth)
+    input_rgb_used = None  # the actual image array the model saw, for visualization
+
+    if undistort:
+        undistorted_img, _ = seq.load_image_undistorted(image_id, balance=undistort_balance)
+        input_rgb_used = np.array(undistorted_img)
+        input_tensor, original_size = preprocess_image(undistorted_img, model.feed_height, model.feed_width)
+        result = infer_depth(model, input_tensor, min_depth=min_depth, max_depth=max_depth,
+                              original_size=original_size)
+    else:
+        result = run_inference(model, frame_path, min_depth=min_depth, max_depth=max_depth)
     pred_depth = result["pred_depth"]
 
-    pixels, gt_depths, _ = seq.get_sparse_depth(image_id)
+    pixels, gt_depths, _ = seq.get_sparse_depth(image_id, undistort=undistort, balance=undistort_balance)
     if pixels.shape[0] == 0:
         return None
 
@@ -136,6 +155,7 @@ def evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points, min_g
         "skipped": False,
         "n_points": n_valid,
         "frame_path": frame_path,
+        "input_rgb_used": input_rgb_used,
         "ratio": ratio,
         "errors": errors,
         "pred_depth": pred_depth,
@@ -147,14 +167,15 @@ def evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points, min_g
 
 
 def evaluate_sequence(model_name, model, seq, min_depth, max_depth, min_points, rows,
-                       min_gt_depth_ratio=0.05):
+                       min_gt_depth_ratio=0.05, undistort=True, undistort_balance=0.0):
     ratios = []
     per_model_errors = []
     n_skipped = 0
 
     for image_id in seq.image_ids:
         out = evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points,
-                              min_gt_depth_ratio=min_gt_depth_ratio)
+                              min_gt_depth_ratio=min_gt_depth_ratio,
+                              undistort=undistort, undistort_balance=undistort_balance)
         if out is None:
             continue
         if out["skipped"]:
@@ -242,7 +263,8 @@ def main():
         for model_name, model in loaded_models.items():
             mean_errors = evaluate_sequence(
                 model_name, model, seq, cfg["min_depth"], cfg["max_depth"], min_points, rows,
-                min_gt_depth_ratio=cfg["min_gt_depth_ratio"])
+                min_gt_depth_ratio=cfg["min_gt_depth_ratio"],
+                undistort=cfg["undistort"], undistort_balance=cfg["undistort_balance"])
             if mean_errors is not None:
                 n_eval = sum(1 for r in rows if r[0] == seq_name and r[1] == model_name and r[4] != "")
                 summary_rows.append([seq_name, model_name, n_eval] + list(mean_errors))

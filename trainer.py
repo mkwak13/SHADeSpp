@@ -110,7 +110,8 @@ class Trainer:
         # data
         datasets_dict = {"endovis": datasets.SCAREDRAWDataset,
                          "hk": datasets.HKDataset,
-                         "c3vd": datasets.C3VDDataset}
+                         "c3vd": datasets.C3VDDataset,
+                         "endomapper": datasets.EndoMapperMonoDataset}
         self.dataset = datasets_dict[self.opt.dataset]
 
         if not isinstance(self.opt.split, list):
@@ -172,7 +173,7 @@ class Trainer:
         num_train_samples = len(train_filenames)
         self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epochs
 
-        if self.opt.dataset == "hk" or self.opt.dataset == "c3vd":
+        if self.opt.dataset in ("hk", "c3vd", "endomapper"):
             train_dataset = self.dataset(
                 self.opt.data_path[0], train_filenames, self.opt.height, self.opt.width,
                 self.opt.frame_ids, 4, is_train=True, img_ext=img_ext, 
@@ -187,7 +188,7 @@ class Trainer:
             train_dataset, self.opt.batch_size, True,
             num_workers=self.opt.num_workers, pin_memory=not self.opt.no_cuda, drop_last=True)
 
-        if self.opt.dataset == "hk" or self.opt.dataset == "c3vd":
+        if self.opt.dataset in ("hk", "c3vd", "endomapper"):
             val_dataset = self.dataset(
             self.opt.data_path[0], val_filenames, self.opt.height, self.opt.width,
             self.opt.frame_ids, 4, is_train=False, img_ext=img_ext,

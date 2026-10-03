@@ -18,6 +18,7 @@ import os
 import struct
 import collections
 
+import cv2
 import numpy as np
 
 
@@ -317,3 +318,59 @@ def observed_points_with_depth(image, points3D, min_depth=1e-6):
 
     in_front = depths > min_depth
     return pixels[in_front], depths[in_front], point3D_ids[in_front]
+
+
+def get_fisheye_distortion_coeffs(camera):
+    """Return the (k1, k2, k3, k4) OpenCV fisheye distortion coefficients for
+    `camera`, or None if its model isn't fisheye-distorted (nothing to undo).
+    """
+    if camera.model == "OPENCV_FISHEYE":
+        return np.array(camera.params[4:8], dtype=np.float64)
+    return None
+
+
+def build_undistort_map(camera, balance=0.0):
+    """Precompute a cv2.fisheye undistortion remap for `camera`.
+
+    `balance` trades off field of view vs. invalid (black) border pixels:
+    0.0 keeps only the pixels valid in the original distorted image (no
+    black borders, some FOV cropped at the edges); 1.0 keeps the full
+    original FOV at the cost of black corners. 0.0 is the safer default
+    here since the SHADeS/SHADeS++ encoder was trained on images with no
+    black borders.
+
+    Returns (map1, map2, new_K) for cv2.remap, or (None, None, K) if the
+    camera has no fisheye distortion to undo (K unprojected as-is).
+    """
+    K = camera_intrinsics_matrix(camera)
+    D = get_fisheye_distortion_coeffs(camera)
+    if D is None:
+        return None, None, K
+
+    size = (camera.width, camera.height)
+    new_K = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(
+        K, D, size, np.eye(3), balance=balance)
+    map1, map2 = cv2.fisheye.initUndistortRectifyMap(
+        K, D, np.eye(3), new_K, size, cv2.CV_32FC1)
+    return map1, map2, new_K
+
+
+def undistort_image(image_bgr, map1, map2):
+    """Apply a map from `build_undistort_map` to a BGR (cv2-convention) image."""
+    return cv2.remap(image_bgr, map1, map2, interpolation=cv2.INTER_LINEAR,
+                      borderMode=cv2.BORDER_CONSTANT)
+
+
+def undistort_points(pixels, camera, new_K):
+    """Map (u, v) pixel coordinates from the original distorted image into the
+    pixel space of the image `build_undistort_map`'s (map1, map2, new_K)
+    produces -- i.e. the correct GT point locations to sample a depth map
+    predicted on the undistorted image. No-op if the camera isn't fisheye.
+    """
+    D = get_fisheye_distortion_coeffs(camera)
+    if D is None or pixels.shape[0] == 0:
+        return pixels
+    K = camera_intrinsics_matrix(camera)
+    pts = pixels.reshape(-1, 1, 2).astype(np.float64)
+    undistorted = cv2.fisheye.undistortPoints(pts, K, D, P=new_K)
+    return undistorted.reshape(-1, 2)

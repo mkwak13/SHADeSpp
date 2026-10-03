@@ -136,19 +136,27 @@ def compute_specular_filtered_image(input_color, reflectance, mask, kernel=7):
     return filtered
 
 
-def load_input_image(image_path, feed_height, feed_width):
-    """Load an image and resize it to the model's input resolution.
+def preprocess_image(input_image, feed_height, feed_width):
+    """Resize an already-loaded RGB PIL image to the model's input resolution.
 
     Returns:
         input_tensor: (1, 3, feed_height, feed_width) tensor in [0, 1]
         original_size: (width, height) of the source image, for resizing the
             prediction back to native resolution.
     """
-    input_image = pil.open(image_path).convert("RGB")
     original_size = input_image.size  # (W, H)
-    input_image = input_image.resize((feed_width, feed_height), pil.LANCZOS)
-    input_tensor = transforms.ToTensor()(input_image).unsqueeze(0)
+    resized = input_image.resize((feed_width, feed_height), pil.LANCZOS)
+    input_tensor = transforms.ToTensor()(resized).unsqueeze(0)
     return input_tensor, original_size
+
+
+def load_input_image(image_path, feed_height, feed_width):
+    """Load an image from disk and resize it to the model's input resolution.
+    See `preprocess_image` for the return value -- use that directly if you
+    already have a PIL image in memory (e.g. an undistorted frame).
+    """
+    input_image = pil.open(image_path).convert("RGB")
+    return preprocess_image(input_image, feed_height, feed_width)
 
 
 @torch.no_grad()

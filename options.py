@@ -28,7 +28,7 @@ class MonodepthOptions:
           self.parser.add_argument("--split",
                                    type=str,
                                    help="which training split to use",
-                                   choices=["endovis", "hamlyn", "hk", "c3vd"],
+                                   choices=["endovis", "hamlyn", "hk", "c3vd", "endomapper"],
                                    default="hk")
           self.parser.add_argument("--num_layers",
                                    type=int,
@@ -39,7 +39,7 @@ class MonodepthOptions:
                                    type=str,
                                    help="dataset to train on",
                                    default="hk",
-                                   choices=["endovis", "hamlyn", "hk", "c3vd"])
+                                   choices=["endovis", "hamlyn", "hk", "c3vd", "endomapper"])
           self.parser.add_argument("--height",
                                    type=int,
                                    help="input image height",
