@@ -58,15 +58,28 @@ class C3VDDataset(C3VDInitDataset):
         super(C3VDDataset, self).__init__(*args, **kwargs)
 
     def get_image_path(self, folder, frame_index, side):
-        
+
         #try without zero padding
         f_str = "{}_color{}".format(frame_index, self.img_ext)
         image_path = os.path.join(self.data_path, folder, f_str)
         if os.path.exists(image_path):
             return image_path
-        
+
         #fallback: with zero padding
         f_str = "{:04d}_color{}".format(frame_index, self.img_ext)
         image_path = os.path.join(folder, f_str)
+        if os.path.exists(image_path):
+            return image_path
+
+        # C3VDv2 layout: <seq>/rgb/<frame>.ext (no "_color" suffix, frames one
+        # level down in an "rgb" subfolder) instead of C3VD's <seq>/<frame>_color.ext
+        f_str = "{:04d}{}".format(frame_index, self.img_ext)
+        c3vdv2_path = os.path.join(folder, "rgb", f_str)
+        if os.path.exists(c3vdv2_path):
+            return c3vdv2_path
+        if os.path.basename(folder) == "rgb":
+            c3vdv2_path = os.path.join(folder, f_str)
+            if os.path.exists(c3vdv2_path):
+                return c3vdv2_path
 
         return image_path

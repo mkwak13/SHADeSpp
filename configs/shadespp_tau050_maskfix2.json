@@ -1,0 +1,34 @@
+{
+  "_comment": "Iteration 2 of the mask-collapse-weight diagnostic. Iteration 1 (configs/shadespp_tau050_maskfix.json: 160 images, 2 epochs) made things worse -- mask coverage moved 3.1%->4.7% toward the 15% target but its max value collapsed from ~1.0 to ~0.12, suggesting it was chasing the coverage target by flagging everything mildly rather than learning real specular regions. This iteration restarts from the same original v_tau050 checkpoint (not iteration 1's) with more data and more epochs to give it a real chance to learn, rather than stacking on top of an already-undertrained result.",
+
+  "model_name": "v_tau050_maskfix2",
+  "log_dir": "models/shadespp",
+  "tau": 0.50,
+  "decomp_recon_weight": 0.3,
+  "reflec_constraint": 1.0,
+  "reprojection_constraint": 1.0,
+
+  "mask_ratio_weight": 0.1,
+  "target_mask_ratio": 0.15,
+
+  "data_path": "datasets/C3VD/Dataset",
+  "split": "c3vd_small",
+  "dataset": "c3vd",
+  "height": 288,
+  "width": 288,
+  "png": true,
+
+  "automasking": true,
+  "noadjust": true,
+
+  "no_cuda": true,
+  "batch_size": 4,
+  "num_workers": 4,
+  "log_frequency": 25,
+
+  "load_weights_folder": "models/shadespp/v_tau050/models/weights_19",
+  "models_to_load": ["encoder", "depth", "decompose_encoder", "decompose", "pose_encoder", "pose"],
+
+  "save_frequency": 1,
+  "num_epochs": 5
+}

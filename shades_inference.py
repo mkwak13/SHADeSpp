@@ -8,11 +8,19 @@ it. Behaviour is kept identical to `evaluate_depth.py`:
 - A checkpoint is treated as SHADeS++ iff "shadespp" appears in its weights
   folder path (case-insensitive) -- same heuristic `evaluate_depth.py` uses
   -- unless `is_shadespp` is passed explicitly.
-- SHADeS++ checkpoints feed [image, reflectance, specular-mask] (7 channels)
-  into the depth encoder; plain SHADeS feeds the 3-channel image only. Both
-  use the same `networks.decompose_decoder` architecture to produce the
-  reflectance/light/mask outputs (SHADeS just doesn't route them back into
-  the depth encoder).
+- SHADeS++ checkpoints feed [filtered, reflectance, specular-mask] (7
+  channels) into the depth encoder; plain SHADeS feeds the 3-channel image
+  only. Both use the same `networks.decompose_decoder` architecture to
+  produce the reflectance/light/mask outputs (SHADeS just doesn't route them
+  back into the depth encoder).
+- `filtered` is the specular-suppressed image `compute_specular_filtered_image`
+  builds below -- the raw image with masked (specular) pixels replaced by a
+  neighborhood-averaged reflectance estimate. This matches exactly what
+  `trainer.py.process_batch` feeds the depth encoder during training
+  (trainer.py lines ~379-411); using the raw image instead, as earlier
+  versions of this file and `evaluate_depth.py` did, is a train/inference
+  mismatch -- the depth encoder was trained to expect specular suppression
+  in its first 3 input channels and never learns to cope with their absence.
 """
 from __future__ import absolute_import, division, print_function
 
@@ -21,6 +29,7 @@ import os
 import numpy as np
 import PIL.Image as pil
 import torch
+import torch.nn.functional as F
 from torchvision import transforms
 
 import networks
@@ -93,6 +102,40 @@ def load_shades_model(load_weights_folder, num_layers=18, device=None, is_shades
         feed_height=feed_height, feed_width=feed_width, is_shadespp=is_shadespp, device=device)
 
 
+def compute_specular_filtered_image(input_color, reflectance, mask, kernel=7):
+    """Replace masked (specular) pixels with a neighborhood-averaged
+    reflectance estimate, color-matched to the surrounding non-specular
+    luminance. Ported 1:1 from `trainer.py.process_batch` (lines ~379-408),
+    which is what the SHADeS++ depth encoder actually saw as its first 3
+    input channels during training -- the depth encoder was never trained
+    on specular-contaminated input, so inference must reproduce this exact
+    transform rather than feeding the raw image.
+    """
+    padding = kernel // 2
+
+    non_spec = input_color * (1 - mask)
+    sum_non = F.avg_pool2d(non_spec, kernel, stride=1, padding=padding) * (kernel ** 2)
+    count = F.avg_pool2d((1 - mask), kernel, stride=1, padding=padding) * (kernel ** 2)
+
+    refl_non_spec = reflectance * (1 - mask)
+    sum_refl = F.avg_pool2d(refl_non_spec, kernel, stride=1, padding=padding) * (kernel ** 2)
+    neigh_refl = sum_refl / (count + 1e-6)
+
+    neigh_color = sum_non / (count + 1e-6)
+    luma_weights = torch.tensor([0.299, 0.587, 0.114], device=input_color.device).view(1, 3, 1, 1)
+    luma_color = (neigh_color * luma_weights).sum(dim=1, keepdim=True)
+    luma_refl = (neigh_refl * luma_weights).sum(dim=1, keepdim=True)
+    ratio = luma_color / (luma_refl + 1e-6)
+    ratio = torch.clamp(ratio, 0.0, 2.0)
+
+    valid = count > 0.5
+    neigh_refl = torch.where(valid, neigh_refl * ratio, neigh_color)
+    neigh_refl = torch.clamp(neigh_refl, 0.0, 1.0)
+
+    filtered = input_color * (1 - mask) + neigh_refl * mask
+    return filtered
+
+
 def load_input_image(image_path, feed_height, feed_width):
     """Load an image and resize it to the model's input resolution.
 
@@ -126,7 +169,8 @@ def infer_depth(model, input_tensor, min_depth=0.1, max_depth=150.0, original_si
     if model.is_shadespp:
         decompose_feat = model.decompose_encoder(input_tensor)
         reflectance_t, light_t, mask_soft = model.decompose_decoder(decompose_feat)
-        depth_input = torch.cat([input_tensor, reflectance_t, mask_soft], dim=1)
+        filtered = compute_specular_filtered_image(input_tensor, reflectance_t, mask_soft)
+        depth_input = torch.cat([filtered, reflectance_t, mask_soft], dim=1)
         reflectance = reflectance_t.squeeze(0).permute(1, 2, 0).cpu().numpy()
         light = light_t.squeeze(0).squeeze(0).cpu().numpy()
     else:

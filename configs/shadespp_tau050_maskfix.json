@@ -1,0 +1,37 @@
+{
+  "_comment": "Diagnostic fine-tune of v_tau050: isolate the effect of a stronger anti-collapse weight on the specular mask (observed mean coverage 3.1% vs its own 15% target under the original 0.02 weight). Resumes from the existing checkpoint rather than training from scratch, on a small C3VD subset, so this is a fast, targeted test of one specific hypothesis -- not a full retrain.",
+
+  "model_name": "v_tau050_maskfix",
+  "log_dir": "models/shadespp",
+  "tau": 0.50,
+  "decomp_recon_weight": 0.3,
+  "reflec_constraint": 1.0,
+  "reprojection_constraint": 1.0,
+
+  "mask_ratio_weight": 0.1,
+  "_mask_ratio_weight_comment": "5x the original hardcoded 0.02, to see whether that was actually the limiting factor behind the 3.1%-vs-15% gap.",
+  "target_mask_ratio": 0.15,
+
+  "data_path": "datasets/C3VD/Dataset",
+  "split": "c3vd_tiny",
+  "dataset": "c3vd",
+  "height": 288,
+  "width": 288,
+  "png": true,
+
+  "automasking": true,
+  "noadjust": true,
+
+  "no_cuda": true,
+  "_no_cuda_comment": "All 4 GPUs on this box are full from other users' jobs (~900MB free, not enough for a CUDA context). Forcing CPU; split shrunk to 160 train / 60 val images and num_epochs to 2 to keep this tolerable.",
+
+  "batch_size": 4,
+  "num_workers": 4,
+  "log_frequency": 10,
+
+  "load_weights_folder": "models/shadespp/v_tau050/models/weights_19",
+  "models_to_load": ["encoder", "depth", "decompose_encoder", "decompose", "pose_encoder", "pose"],
+
+  "save_frequency": 1,
+  "num_epochs": 2
+}

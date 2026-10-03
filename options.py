@@ -113,10 +113,20 @@ class MonodepthOptions:
                                    action="store_true")
           self.parser.add_argument("--noadjust", help="if set, does not adjust the shading",
                                    action="store_true")
-          self.parser.add_argument("--disparity_spatial_constraint", 
+          self.parser.add_argument("--disparity_spatial_constraint",
                                    help="disparity spatial constraint weight",
                                    type=float,
                                    default=0.0)
+          self.parser.add_argument("--mask_ratio_weight",
+                                   help="weight of the anti-collapse loss pulling the specular "
+                                        "mask's mean coverage toward target_mask_ratio",
+                                   type=float,
+                                   default=0.02)
+          self.parser.add_argument("--target_mask_ratio",
+                                   help="target mean coverage for the specular mask, used by "
+                                        "the anti-collapse loss",
+                                   type=float,
+                                   default=0.15)
 
           # OPTIMIZATION options
           self.parser.add_argument("--batch_size",

@@ -199,7 +199,8 @@ def main():
         for image_id in image_ids:
             rows = []
             for model_name, model in loaded_models.items():
-                out = evaluate_frame(model, seq, image_id, cfg["min_depth"], cfg["max_depth"], min_points=0)
+                out = evaluate_frame(model, seq, image_id, cfg["min_depth"], cfg["max_depth"], min_points=0,
+                                      min_gt_depth_ratio=cfg["min_gt_depth_ratio"])
                 if out is None:
                     continue
                 if out.get("skipped"):

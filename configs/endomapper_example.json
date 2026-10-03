@@ -24,6 +24,9 @@
 
   "output_dir": "outputs/endomapper_eval",
 
+  "min_gt_depth_ratio": 0.05,
+  "_min_gt_depth_ratio_comment": "Sparse COLMAP points with depth below this fraction of the frame's own median depth are dropped before computing errors -- filters out near-zero-depth triangulation artifacts (observed directly: one sequence had points at depth 0.018 against a frame median of ~21), which otherwise dominate sq_rel/RMSE since those metrics divide by gt. Applied to GT only, identically for every model.",
+
   "_cameras_comment": "EndoMapper cameras are OPENCV_FISHEYE. get_sparse_depth() samples COLMAP's actual detected keypoint pixels (not a re-projection through the distortion model), so this works correctly as-is.",
 
   "_undistortion_comment": "NOTE: SHADeS/SHADeS++ were trained on UNDISTORTED C3VD/Hyper-Kvasir frames (see prepare_data/README.md). These EndoMapper frames are raw fisheye-distorted video -- there is a train/eval domain gap until they're undistorted the same way before being fed to the model. Not handled yet; flag if you want this added (cv2.fisheye.* using each sequence's own OPENCV_FISHEYE params, already parsed by datasets/colmap_utils.py).",

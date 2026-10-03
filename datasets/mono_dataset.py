@@ -232,6 +232,12 @@ class MonoDataset(data.Dataset):
                 f for f in os.listdir(folder)
                 if f.endswith("_color" + self.img_ext)
             ]
+            if not frame_files:
+                # C3VDv2 layout: <seq>/rgb/<frame>.ext, no "_color" suffix
+                frame_files = [
+                    f for f in os.listdir(folder)
+                    if f.endswith(self.img_ext)
+                ]
 
             indices = sorted([
                 int(re.search(r'\d+', f).group())

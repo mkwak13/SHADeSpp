@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from layers import disp_to_depth
 from utils import readlines
 from options import MonodepthOptions
+from shades_inference import compute_specular_filtered_image
 import datasets
 import networks
 
@@ -63,6 +64,8 @@ def evaluate(opt):
     assert sum((opt.eval_mono, opt.eval_stereo)) == 1, \
         "Please choose mono or stereo evaluation by setting either --eval_mono or --eval_stereo"
 
+    device = torch.device("cuda" if (torch.cuda.is_available() and not opt.no_cuda) else "cpu")
+
     if opt.ext_disp_to_eval is None:
 
         opt.load_weights_folder = os.path.expanduser(opt.load_weights_folder)
@@ -76,13 +79,13 @@ def evaluate(opt):
         encoder_path = os.path.join(opt.load_weights_folder, "encoder.pth")
         decoder_path = os.path.join(opt.load_weights_folder, "depth.pth")
 
-        encoder_dict = torch.load(encoder_path)
+        encoder_dict = torch.load(encoder_path, map_location=device)
         if opt.eval_split=="endovis":
             dataset = datasets.SCAREDRAWDataset(opt.data_path, filenames,
                                             encoder_dict['height'], encoder_dict['width'],
                                             [0], 4, is_train=False)
             dataloader = DataLoader(dataset, 16, shuffle=False, num_workers=opt.num_workers,
-                                    pin_memory=True, drop_last=False)
+                                    pin_memory=not opt.no_cuda, drop_last=False)
         elif opt.eval_split in ["c3vd", "c3vdv2"]:
             dataset = datasets.C3VDDataset(
                 opt.data_path if isinstance(opt.data_path, str) else opt.data_path[0],
@@ -97,7 +100,7 @@ def evaluate(opt):
                 dataset, 16,
                 shuffle=False,
                 num_workers=opt.num_workers,
-                pin_memory=True,
+                pin_memory=not opt.no_cuda,
                 drop_last=False
             )
 
@@ -121,7 +124,7 @@ def evaluate(opt):
 
         model_dict = encoder.state_dict()
         encoder.load_state_dict({k: v for k, v in encoder_dict.items() if k in model_dict})
-        depth_decoder.load_state_dict(torch.load(decoder_path))
+        depth_decoder.load_state_dict(torch.load(decoder_path, map_location=device))
 
         if num_in == 2:
             decompose_encoder = networks.ResnetEncoder(
@@ -134,20 +137,20 @@ def evaluate(opt):
             )
 
             decompose_encoder.load_state_dict(
-                torch.load(os.path.join(opt.load_weights_folder, "decompose_encoder.pth"))
+                torch.load(os.path.join(opt.load_weights_folder, "decompose_encoder.pth"), map_location=device)
             )
             decompose_decoder.load_state_dict(
-                torch.load(os.path.join(opt.load_weights_folder, "decompose.pth"))
+                torch.load(os.path.join(opt.load_weights_folder, "decompose.pth"), map_location=device)
             )
 
-            decompose_encoder.cuda()
+            decompose_encoder.to(device)
             decompose_encoder.eval()
-            decompose_decoder.cuda()
+            decompose_decoder.to(device)
             decompose_decoder.eval()
 
-        encoder.cuda()
+        encoder.to(device)
         encoder.eval()
-        depth_decoder.cuda()
+        depth_decoder.to(device)
         depth_decoder.eval()
 
         pred_disps = []
@@ -158,7 +161,7 @@ def evaluate(opt):
 
         with torch.no_grad():
             for data in dataloader:
-                input_color = data[("color", 0, 0)].cuda()
+                input_color = data[("color", 0, 0)].to(device)
 
                 if opt.post_process:
                     # Post-processed results require each image to have two forward passes
@@ -168,7 +171,8 @@ def evaluate(opt):
                 if num_in == 2:
                     decompose_feat = decompose_encoder(input_color)
                     reflectance, light, mask_soft = decompose_decoder(decompose_feat)
-                    depth_input = torch.cat([input_color, reflectance, mask_soft], dim=1)
+                    filtered = compute_specular_filtered_image(input_color, reflectance, mask_soft)
+                    depth_input = torch.cat([filtered, reflectance, mask_soft], dim=1)
                 else:
                     mask_soft = torch.zeros_like(input_color[:, :1])
                     depth_input = input_color

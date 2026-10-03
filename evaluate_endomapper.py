@@ -70,6 +70,7 @@ def load_config(path):
     cfg.setdefault("max_depth", 150.0)
     cfg.setdefault("num_layers", 18)
     cfg.setdefault("min_points_per_frame", 20)
+    cfg.setdefault("min_gt_depth_ratio", 0.05)
     cfg.setdefault("output_dir", "outputs/endomapper_eval")
     cfg.setdefault("sequences", None)
     return cfg
@@ -89,7 +90,7 @@ def sample_pred_at_points(pred_depth, pixels):
     return sampled, in_bounds
 
 
-def evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points):
+def evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points, min_gt_depth_ratio=0.05):
     """Run inference + sparse-depth comparison for a single frame.
 
     Returns a dict of results, or None if the frame doesn't have enough
@@ -105,6 +106,19 @@ def evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points):
 
     pred_at_pts, in_bounds = sample_pred_at_points(pred_depth, pixels)
     valid = in_bounds & (gt_depths > 0) & np.isfinite(pred_at_pts) & (pred_at_pts > 0)
+
+    # Drop likely COLMAP triangulation artifacts: a small fraction of sparse points
+    # can land at near-zero depth from degenerate/near-parallel ray intersections,
+    # especially in narrow-baseline endoscopy SfM (observed directly: one sequence
+    # had points at depth 0.018 against a frame median of ~21). sq_rel/RMSE divide
+    # by gt, so a single such point can dominate a whole frame's error regardless of
+    # how good the prediction is. COLMAP units are arbitrary per-sequence, so there's
+    # no fixed metric threshold to borrow from evaluate_depth.py's MIN_DEPTH filter --
+    # use a relative floor against this frame's own median instead. Filters GT only,
+    # so it's applied identically regardless of which model is being evaluated.
+    if valid.sum() > 0:
+        prelim_median = np.median(gt_depths[valid])
+        valid = valid & (gt_depths > min_gt_depth_ratio * prelim_median)
 
     n_valid = int(valid.sum())
     if n_valid < min_points:
@@ -132,13 +146,15 @@ def evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points):
     }
 
 
-def evaluate_sequence(model_name, model, seq, min_depth, max_depth, min_points, rows):
+def evaluate_sequence(model_name, model, seq, min_depth, max_depth, min_points, rows,
+                       min_gt_depth_ratio=0.05):
     ratios = []
     per_model_errors = []
     n_skipped = 0
 
     for image_id in seq.image_ids:
-        out = evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points)
+        out = evaluate_frame(model, seq, image_id, min_depth, max_depth, min_points,
+                              min_gt_depth_ratio=min_gt_depth_ratio)
         if out is None:
             continue
         if out["skipped"]:
@@ -225,7 +241,8 @@ def main():
 
         for model_name, model in loaded_models.items():
             mean_errors = evaluate_sequence(
-                model_name, model, seq, cfg["min_depth"], cfg["max_depth"], min_points, rows)
+                model_name, model, seq, cfg["min_depth"], cfg["max_depth"], min_points, rows,
+                min_gt_depth_ratio=cfg["min_gt_depth_ratio"])
             if mean_errors is not None:
                 n_eval = sum(1 for r in rows if r[0] == seq_name and r[1] == model_name and r[4] != "")
                 summary_rows.append([seq_name, model_name, n_eval] + list(mean_errors))
