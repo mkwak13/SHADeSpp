@@ -44,7 +44,7 @@
     },
     {
       "name": "SHADeS++",
-      "load_weights_folder": "models/shadespp/v_hk_gpu_full/models/weights_19",
+      "load_weights_folder": "models/shadespp/v_hk_gpu_full_reflfix/models/weights_19",
       "num_layers": 18,
       "is_shadespp": true
     }

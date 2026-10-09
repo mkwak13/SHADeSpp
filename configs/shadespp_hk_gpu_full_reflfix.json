@@ -1,0 +1,29 @@
+{
+  "_comment": "Same as shadespp_hk_gpu_full.json, retrained with the reflectance-channel specular-removal fix (trainer.py now masks the reflectance channel with the same neighbor-averaged replacement used for `filtered`, instead of feeding the depth encoder a cleaned filtered image alongside an uncorrected reflectance channel). Trained under a new model_name so the existing v_hk_gpu_full checkpoint stays available as a fallback until this one is validated.",
+
+  "model_name": "v_hk_gpu_full_reflfix",
+  "log_dir": "models/shadespp",
+  "tau": 0.50,
+  "decomp_recon_weight": 0.3,
+  "reflec_constraint": 1.0,
+  "reprojection_constraint": 1.0,
+  "disparity_smoothness": 0.01,
+
+  "data_path": "datasets/BBPS-2-3Frames/Undistorted/Frames",
+  "split": "hk",
+  "dataset": "hk",
+  "height": 288,
+  "width": 288,
+  "png": true,
+  "distorted": false,
+
+  "automasking": true,
+  "noadjust": true,
+
+  "batch_size": 8,
+  "num_workers": 8,
+  "log_frequency": 100,
+
+  "save_frequency": 1,
+  "num_epochs": 20
+}
