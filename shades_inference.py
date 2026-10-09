@@ -105,11 +105,17 @@ def load_shades_model(load_weights_folder, num_layers=18, device=None, is_shades
 def compute_specular_filtered_image(input_color, reflectance, mask, kernel=7):
     """Replace masked (specular) pixels with a neighborhood-averaged
     reflectance estimate, color-matched to the surrounding non-specular
-    luminance. Ported 1:1 from `trainer.py.process_batch` (lines ~379-408),
-    which is what the SHADeS++ depth encoder actually saw as its first 3
+    luminance. Ported 1:1 from `trainer.py.process_batch` (lines ~379-412),
+    which is what the SHADeS++ depth encoder actually saw as its first 6
     input channels during training -- the depth encoder was never trained
     on specular-contaminated input, so inference must reproduce this exact
     transform rather than feeding the raw image.
+
+    Returns (filtered, reflectance_filtered): both `input_color` and
+    `reflectance` get the same masked-pixel replacement (`neigh_refl`)
+    applied, since both are concatenated into the depth encoder's input --
+    leaving `reflectance` uncorrected would feed it specular contamination
+    through a second channel even with `filtered` itself clean.
     """
     padding = kernel // 2
 
@@ -133,7 +139,8 @@ def compute_specular_filtered_image(input_color, reflectance, mask, kernel=7):
     neigh_refl = torch.clamp(neigh_refl, 0.0, 1.0)
 
     filtered = input_color * (1 - mask) + neigh_refl * mask
-    return filtered
+    reflectance_filtered = reflectance * (1 - mask) + neigh_refl * mask
+    return filtered, reflectance_filtered
 
 
 def preprocess_image(input_image, feed_height, feed_width):
@@ -177,9 +184,11 @@ def infer_depth(model, input_tensor, min_depth=0.1, max_depth=150.0, original_si
     if model.is_shadespp:
         decompose_feat = model.decompose_encoder(input_tensor)
         reflectance_t, light_t, mask_soft = model.decompose_decoder(decompose_feat)
-        filtered = compute_specular_filtered_image(input_tensor, reflectance_t, mask_soft)
-        depth_input = torch.cat([filtered, reflectance_t, mask_soft], dim=1)
-        reflectance = reflectance_t.squeeze(0).permute(1, 2, 0).cpu().numpy()
+        filtered, reflectance_filtered_t = compute_specular_filtered_image(input_tensor, reflectance_t, mask_soft)
+        depth_input = torch.cat([filtered, reflectance_filtered_t, mask_soft], dim=1)
+        # the filtered reflectance -- what the encoder actually sees -- not the raw
+        # decoder output, so this matches `filtered` and `pred_depth` below.
+        reflectance = reflectance_filtered_t.squeeze(0).permute(1, 2, 0).cpu().numpy()
         light = light_t.squeeze(0).squeeze(0).cpu().numpy()
     else:
         mask_soft = torch.zeros_like(input_tensor[:, :1])

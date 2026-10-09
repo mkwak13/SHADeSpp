@@ -171,8 +171,8 @@ def evaluate(opt):
                 if num_in == 2:
                     decompose_feat = decompose_encoder(input_color)
                     reflectance, light, mask_soft = decompose_decoder(decompose_feat)
-                    filtered = compute_specular_filtered_image(input_color, reflectance, mask_soft)
-                    depth_input = torch.cat([filtered, reflectance, mask_soft], dim=1)
+                    filtered, reflectance_filtered = compute_specular_filtered_image(input_color, reflectance, mask_soft)
+                    depth_input = torch.cat([filtered, reflectance_filtered, mask_soft], dim=1)
                 else:
                     mask_soft = torch.zeros_like(input_color[:, :1])
                     depth_input = input_color

@@ -186,7 +186,7 @@ class Trainer:
 
         self.train_loader = DataLoader(
             train_dataset, self.opt.batch_size, True,
-            num_workers=self.opt.num_workers, pin_memory=not self.opt.no_cuda, drop_last=True)
+            num_workers=self.opt.num_workers, pin_memory=True, drop_last=True)
 
         if self.opt.dataset in ("hk", "c3vd", "endomapper"):
             val_dataset = self.dataset(
@@ -201,7 +201,7 @@ class Trainer:
 
         self.val_loader = DataLoader(
             val_dataset, self.opt.batch_size, False,
-            num_workers=1, pin_memory=not self.opt.no_cuda, drop_last=True)
+            num_workers=1, pin_memory=True, drop_last=True)
         self.val_iter = iter(self.val_loader)
 
         self.writers = {}
@@ -409,7 +409,13 @@ class Trainer:
             filtered = input_color * (1 - mask) + neigh_refl * mask
             outputs[("filtered", 0, 0)] = filtered
 
-            depth_input = torch.cat([filtered, reflectance, mask], dim=1)
+            # same masked-pixel replacement, applied to the reflectance channel too --
+            # previously only `filtered` had specular pixels replaced, so `reflectance`
+            # (concatenated right alongside it) fed the encoder with uncorrected glare.
+            reflectance_filtered = reflectance * (1 - mask) + neigh_refl * mask
+            outputs[("reflectance_filtered", 0, 0)] = reflectance_filtered
+
+            depth_input = torch.cat([filtered, reflectance_filtered, mask], dim=1)
 
             features = self.models["encoder"](depth_input)
         outputs.update(self.models["depth"](features))
@@ -522,13 +528,7 @@ class Trainer:
             outputs[("valid_mask", 0, frame_id)] = valid_mask
 
             if not self.opt.noadjust:
-                # unadjusted reconstruction, i.e. the residual adjust_net needs to correct.
-                # (a stale reference to an undefined ("color_warp", 0, frame_id) tensor used
-                # to be here -- a leftover from before reflectance/light warping replaced a
-                # single combined color warp -- which made this branch crash immediately,
-                # which is presumably why every config in configs/ sets noadjust=true.)
-                unadjusted_warp = outputs[("reflectance_warp", 0, frame_id)] * outputs[("light_warp", 0, frame_id)]
-                outputs[("warp_diff_color", 0, frame_id)] = torch.abs(inputs[("color_aug",0,0)]-unadjusted_warp)*valid_mask
+                outputs[("warp_diff_color", 0, frame_id)] = torch.abs(inputs[("color_aug",0,0)]-outputs[("color_warp",0,frame_id)])*valid_mask
                 outputs[("transform", 0, frame_id)] = self.models["adjust_net"](outputs[("warp_diff_color", 0, frame_id)])
                 outputs[("light_adjust_warp",0,frame_id)] = outputs[("transform", 0, frame_id)] + outputs[("light_warp",0,frame_id)] 
                 outputs[("light_adjust_warp",0,frame_id)] = torch.clamp(outputs[("light_adjust_warp",0,frame_id)], min=0.0, max=1.0)
@@ -719,9 +719,9 @@ class Trainer:
 
         total_loss += 0.001 * loss_mask_reg + 0.005 * loss_mask_tv
 
-        target_ratio = self.opt.target_mask_ratio
+        target_ratio = 0.15
         loss_mask_ratio = torch.abs(M0.mean() - target_ratio)
-        total_loss += self.opt.mask_ratio_weight * loss_mask_ratio
+        total_loss += 0.02 * loss_mask_ratio
 
         losses["loss"] = total_loss
 
@@ -891,6 +891,6 @@ class Trainer:
             print("Loading {} weights...".format(n))
             path = os.path.join(self.opt.load_weights_folder, "{}.pth".format(n))
             model_dict = self.models[n].state_dict()
-            pretrained_dict = torch.load(path, map_location=self.device)
+            pretrained_dict = torch.load(path)
             pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
             model_dict.update(pretrained_dict)

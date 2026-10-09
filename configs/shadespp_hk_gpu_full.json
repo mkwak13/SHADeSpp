@@ -1,0 +1,30 @@
+{
+  "_comment": "Full 'same condition as SHADeS' HK training in one job: full 16,976-image Hyper-Kvasir train split, 20 epochs (matching the paper's recipe, arXiv:2502.12994, and matching weights_19 in the baseline SHADeS checkpoint name -- epoch indices are 0-based, so weights_19 is the final epoch, matching the baseline's naming). Trained on HK only (C3VD held out for eval only), fresh start (no load_weights_folder, same initialization point as v_tau050) for a fair comparison against the HK-pretrained SHADeS baseline. On GPU (Quadro RTX 6000 x4). save_frequency=1 so a disconnect never loses more than one epoch of progress. noadjust=true to match the real baseline checkpoint name (ckpt/finetuned_mono_hkfull_288_pseudo_dsms_automasking_noadjust) -- fixed from an earlier version of this config that had noadjust=false, which does not match the baseline and (after the Oct-3 commit's crash-fix for that code path was reverted) would crash on epoch 0.",
+
+  "model_name": "v_hk_gpu_full",
+  "log_dir": "models/shadespp",
+  "tau": 0.50,
+  "decomp_recon_weight": 0.3,
+  "reflec_constraint": 1.0,
+  "reprojection_constraint": 1.0,
+  "disparity_smoothness": 0.01,
+  "_loss_weights_comment": "Kept identical to every other SHADeS++ run this session rather than guessing a mapping onto the paper's (lambda_d, lambda_a, lambda_r, lambda_es) notation -- this code has more loss terms than the paper's summary describes, so there's no verified 1:1 correspondence, and reflec_constraint is confirmed dead code (unused in trainer.py, like tau).",
+
+  "data_path": "datasets/BBPS-2-3Frames/Undistorted/Frames",
+  "split": "hk",
+  "dataset": "hk",
+  "height": 288,
+  "width": 288,
+  "png": true,
+  "distorted": false,
+
+  "automasking": true,
+  "noadjust": true,
+
+  "batch_size": 8,
+  "num_workers": 8,
+  "log_frequency": 100,
+
+  "save_frequency": 1,
+  "num_epochs": 20
+}
