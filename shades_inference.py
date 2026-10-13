@@ -102,44 +102,106 @@ def load_shades_model(load_weights_folder, num_layers=18, device=None, is_shades
         feed_height=feed_height, feed_width=feed_width, is_shadespp=is_shadespp, device=device)
 
 
-def compute_specular_filtered_image(input_color, reflectance, mask, kernel=7):
+def diffusion_fill(source, known, iters, kernel=5):
+    """Fill pixels where `known` is 0 by repeatedly averaging with already-
+    known neighbors, letting newly-filled pixels count as known for the
+    next pass. Ported 1:1 from `trainer.py` -- see its docstring. Needed
+    because a specular region wider than kernel_filtered/kernel_reflectance
+    leaves pixels with no valid unmasked neighbor at all, which the
+    single-pass neighbor average below falls back to filling with
+    near-black / a stale contaminated value.
+    """
+    pad = kernel // 2
+    k2 = kernel ** 2
+    value = source * known
+    weight = known
+    for _ in range(iters):
+        sum_v = F.avg_pool2d(value, kernel, stride=1, padding=pad) * k2
+        sum_w = F.avg_pool2d(weight, kernel, stride=1, padding=pad) * k2
+        avg = sum_v / (sum_w + 1e-6)
+        newly_known = (sum_w > 0.5).float() * (1 - weight)
+        value = torch.where(weight > 0.5, value, torch.where(newly_known > 0.5, avg, value))
+        weight = torch.clamp(weight + newly_known, max=1.0)
+    return value
+
+
+def compute_specular_filtered_image(input_color, reflectance, mask, kernel_filtered=7, kernel_reflectance=21,
+                                      fill_iters=40, fov_black_threshold=0.03):
     """Replace masked (specular) pixels with a neighborhood-averaged
     reflectance estimate, color-matched to the surrounding non-specular
-    luminance. Ported 1:1 from `trainer.py.process_batch` (lines ~379-412),
-    which is what the SHADeS++ depth encoder actually saw as its first 6
-    input channels during training -- the depth encoder was never trained
-    on specular-contaminated input, so inference must reproduce this exact
-    transform rather than feeding the raw image.
+    luminance. Ported 1:1 from `trainer.py.process_batch`, which is what the
+    SHADeS++ depth encoder actually saw as its first 6 input channels during
+    training -- the depth encoder was never trained on specular-contaminated
+    input, so inference must reproduce this exact transform rather than
+    feeding the raw image.
 
-    Returns (filtered, reflectance_filtered): both `input_color` and
-    `reflectance` get the same masked-pixel replacement (`neigh_refl`)
-    applied, since both are concatenated into the depth encoder's input --
-    leaving `reflectance` uncorrected would feed it specular contamination
-    through a second channel even with `filtered` itself clean.
+    Returns (filtered, reflectance_filtered). `filtered` gets the
+    input-luminance-matched replacement (`neigh_refl`), since it has to
+    blend into a real photographed image -- its neighbor average uses the
+    small `kernel_filtered` window to preserve real image resolution/texture
+    outside the masked pixels. `reflectance_filtered` gets a separate,
+    un-rescaled reflectance-space neighbor average (computed over the larger
+    `kernel_reflectance` window) instead of reusing that same value --
+    `reflectance` is a distinct albedo channel with its own brightness
+    statistics, so rescaling its replacement to match `input_color`'s
+    luminance just mismatches it against its own neighborhood (visible as
+    dark dots at the replaced pixels rather than a smooth blend), and since
+    only the representative local color matters there (not spatial
+    sharpness), a wider window gives a smoother fill.
     """
-    padding = kernel // 2
+    # Exclude pixels outside the endoscope's visible FOV (pure black
+    # background/vignette corners) from counting as valid neighbors -- see
+    # trainer.py's matching comment. Otherwise a masked pixel near the
+    # frame's black border averages in mostly-black "neighbors" and its fill
+    # collapses toward black instead of the true local tissue color.
+    valid_fov_avg = (input_color.mean(1, keepdim=True) > fov_black_threshold).float()
 
-    non_spec = input_color * (1 - mask)
-    sum_non = F.avg_pool2d(non_spec, kernel, stride=1, padding=padding) * (kernel ** 2)
-    count = F.avg_pool2d((1 - mask), kernel, stride=1, padding=padding) * (kernel ** 2)
+    pad_filt = kernel_filtered // 2
 
-    refl_non_spec = reflectance * (1 - mask)
-    sum_refl = F.avg_pool2d(refl_non_spec, kernel, stride=1, padding=padding) * (kernel ** 2)
-    neigh_refl = sum_refl / (count + 1e-6)
+    valid_filt_px = (1 - mask) * valid_fov_avg
+    non_spec = input_color * valid_filt_px
+    sum_non = F.avg_pool2d(non_spec, kernel_filtered, stride=1, padding=pad_filt) * (kernel_filtered ** 2)
+    count_filt = F.avg_pool2d(valid_filt_px, kernel_filtered, stride=1, padding=pad_filt) * (kernel_filtered ** 2)
 
-    neigh_color = sum_non / (count + 1e-6)
+    refl_non_spec_filt = reflectance * valid_filt_px
+    sum_refl_filt = F.avg_pool2d(refl_non_spec_filt, kernel_filtered, stride=1, padding=pad_filt) * (kernel_filtered ** 2)
+    neigh_refl_raw_filt = sum_refl_filt / (count_filt + 1e-6)
+
+    neigh_color = sum_non / (count_filt + 1e-6)
     luma_weights = torch.tensor([0.299, 0.587, 0.114], device=input_color.device).view(1, 3, 1, 1)
     luma_color = (neigh_color * luma_weights).sum(dim=1, keepdim=True)
-    luma_refl = (neigh_refl * luma_weights).sum(dim=1, keepdim=True)
+    luma_refl = (neigh_refl_raw_filt * luma_weights).sum(dim=1, keepdim=True)
     ratio = luma_color / (luma_refl + 1e-6)
     ratio = torch.clamp(ratio, 0.0, 2.0)
 
-    valid = count > 0.5
-    neigh_refl = torch.where(valid, neigh_refl * ratio, neigh_color)
+    valid_filt = count_filt > 0.5
+    neigh_refl = torch.where(valid_filt, neigh_refl_raw_filt * ratio, neigh_color)
     neigh_refl = torch.clamp(neigh_refl, 0.0, 1.0)
 
-    filtered = input_color * (1 - mask) + neigh_refl * mask
-    reflectance_filtered = reflectance * (1 - mask) + neigh_refl * mask
+    pad_refl = kernel_reflectance // 2
+    valid_refl_px = (1 - mask) * valid_fov_avg
+    refl_non_spec_refl = reflectance * valid_refl_px
+    sum_refl_refl = F.avg_pool2d(refl_non_spec_refl, kernel_reflectance, stride=1, padding=pad_refl) * (kernel_reflectance ** 2)
+    count_refl = F.avg_pool2d(valid_refl_px, kernel_reflectance, stride=1, padding=pad_refl) * (kernel_reflectance ** 2)
+    neigh_refl_raw_refl = sum_refl_refl / (count_refl + 1e-6)
+    valid_refl = count_refl > 0.5
+    neigh_refl_for_reflectance = torch.where(valid_refl, neigh_refl_raw_refl, reflectance)
+    neigh_refl_for_reflectance = torch.clamp(neigh_refl_for_reflectance, 0.0, 1.0)
+
+    # known/source set for diffusion excludes black background for the same
+    # reason as the kernel average above; the final output still only takes
+    # the diffused value where the pixel was actually masked, so black
+    # background itself is never altered even though diffusion may compute
+    # some (discarded) value for it internally.
+    filtered_partial = input_color * (1 - mask) + neigh_refl * mask
+    known_filt = torch.clamp(valid_filt_px + valid_filt.float() * mask, max=1.0)
+    filtered_diffused = diffusion_fill(filtered_partial, known_filt, fill_iters)
+    filtered = torch.where(mask > 0.5, filtered_diffused, filtered_partial)
+
+    reflectance_filtered_partial = reflectance * (1 - mask) + neigh_refl_for_reflectance * mask
+    known_refl = torch.clamp(valid_refl_px + valid_refl.float() * mask, max=1.0)
+    reflectance_filtered_diffused = diffusion_fill(reflectance_filtered_partial, known_refl, fill_iters)
+    reflectance_filtered = torch.where(mask > 0.5, reflectance_filtered_diffused, reflectance_filtered_partial)
     return filtered, reflectance_filtered
 
 

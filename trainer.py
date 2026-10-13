@@ -21,6 +21,32 @@ from torchvision import transforms
 import random
 random.seed(42)
 
+
+def diffusion_fill(source, known, iters, kernel=5):
+    """Fill pixels where `known` is 0 by repeatedly averaging with already-
+    known neighbors, letting newly-filled pixels count as known for the
+    next pass. Color propagates inward from the boundary of a masked
+    region a few pixels per iteration, instead of a single-pass neighbor
+    average leaving a hole (near-black / stale value) wherever the entire
+    kernel window around a pixel is also masked -- which happens in the
+    interior of any specular region wider than the reconstruction kernel.
+    `source` outside `known` is ignored (treated as 0) and only matters
+    once a pixel becomes known during the loop.
+    """
+    pad = kernel // 2
+    k2 = kernel ** 2
+    value = source * known
+    weight = known
+    for _ in range(iters):
+        sum_v = F.avg_pool2d(value, kernel, stride=1, padding=pad) * k2
+        sum_w = F.avg_pool2d(weight, kernel, stride=1, padding=pad) * k2
+        avg = sum_v / (sum_w + 1e-6)
+        newly_known = (sum_w > 0.5).float() * (1 - weight)
+        value = torch.where(weight > 0.5, value, torch.where(newly_known > 0.5, avg, value))
+        weight = torch.clamp(weight + newly_known, max=1.0)
+    return value
+
+
 class Trainer:
     def __init__(self, options):
 
@@ -377,42 +403,100 @@ class Trainer:
             reflectance = outputs[("reflectance", 0, 0)]
             mask = outputs[("mask", 0, 0)]
 
-            # remove specular by filling masked pixels with neighbor reflectance average
-            kernel = 7
-            padding = kernel // 2
-            # compute sum and count for colour neighbourhood (used for weighting)
-            non_spec = input_color * (1 - mask)
-            sum_non = F.avg_pool2d(non_spec, kernel, stride=1, padding=padding) * (kernel**2)
-            count = F.avg_pool2d((1 - mask), kernel, stride=1, padding=padding) * (kernel**2)
-            # compute reflectance average on non?mask neighbourhood
-            refl_non_spec = reflectance * (1 - mask)
-            sum_refl = F.avg_pool2d(refl_non_spec, kernel, stride=1, padding=padding) * (kernel**2)
-            neigh_refl = sum_refl / (count + 1e-6)
+            # remove specular by filling masked pixels with a neighbor average --
+            # `filtered` (a real image) uses a small kernel to preserve resolution
+            # and texture outside the masked pixels; `reflectance` (a separate
+            # albedo channel where only the representative local color matters,
+            # not spatial sharpness) uses a larger kernel for a smoother blend.
+            #
+            # The neighbor-averaging windows below must also exclude pixels
+            # outside the endoscope's visible FOV (pure black background/
+            # vignette corners) from counting as valid neighbors -- "valid"
+            # here previously meant only "not masked", so a masked pixel near
+            # the frame's black border could average in mostly-black
+            # "neighbors", pulling its fill far darker than the true local
+            # tissue color (confirmed directly: a window that was 98% black
+            # background was still 96% counted as "valid", collapsing a
+            # plausible ~0.47 fill down to ~0.008). The wider
+            # specular_kernel_reflectance is more exposed to this than the
+            # small specular_kernel_filtered, since a bigger window reaches
+            # the border from further away.
+            valid_fov_avg = (input_color.mean(1, keepdim=True) > self.opt.specular_fov_black_threshold).float()
 
-            # also compute average color neighbours for luminance reference
-            neigh_color = sum_non / (count + 1e-6)
+            k_filt = self.opt.specular_kernel_filtered
+            pad_filt = k_filt // 2
+            valid_filt_px = (1 - mask) * valid_fov_avg
+            non_spec = input_color * valid_filt_px
+            sum_non = F.avg_pool2d(non_spec, k_filt, stride=1, padding=pad_filt) * (k_filt**2)
+            count_filt = F.avg_pool2d(valid_filt_px, k_filt, stride=1, padding=pad_filt) * (k_filt**2)
+            refl_non_spec_filt = reflectance * valid_filt_px
+            sum_refl_filt = F.avg_pool2d(refl_non_spec_filt, k_filt, stride=1, padding=pad_filt) * (k_filt**2)
+            neigh_refl_raw_filt = sum_refl_filt / (count_filt + 1e-6)
+
+            # average color neighbours for luminance reference
+            neigh_color = sum_non / (count_filt + 1e-6)
             luma_weights = torch.tensor([0.299, 0.587, 0.114], device=input_color.device).view(1, 3, 1, 1)
             luma_color = (neigh_color * luma_weights).sum(dim=1, keepdim=True)
-            luma_refl = (neigh_refl * luma_weights).sum(dim=1, keepdim=True)
+            luma_refl = (neigh_refl_raw_filt * luma_weights).sum(dim=1, keepdim=True)
             ratio = luma_color / (luma_refl + 1e-6)
             # clamp the adjustment factor to prevent extreme colours
             ratio = torch.clamp(ratio, 0.0, 2.0)
 
             # if no valid neighbors (count ~= 0) fall back to neigh_color directly
-            valid = count > 0.5
-            neigh_refl = torch.where(valid, neigh_refl * ratio, neigh_color)
-
-            # final clamp to valid image range
+            valid_filt = count_filt > 0.5
+            # luminance-matched to input_color -- right for `filtered`, which has to
+            # blend into a real photographed image.
+            neigh_refl = torch.where(valid_filt, neigh_refl_raw_filt * ratio, neigh_color)
             neigh_refl = torch.clamp(neigh_refl, 0.0, 1.0)
 
-
-            filtered = input_color * (1 - mask) + neigh_refl * mask
+            filtered_partial = input_color * (1 - mask) + neigh_refl * mask
+            # valid_filt only covers pixels whose specular_kernel_filtered window
+            # contained a real unmasked pixel -- a specular region wider than
+            # that kernel (e.g. with the white-pixel bypass folding a big
+            # saturated highlight straight into the mask) leaves an interior
+            # with no valid neighbor at all, which above falls back to
+            # near-black. Diffuse the already-correct boundary fill further
+            # inward instead of leaving that hole. The known/source set for
+            # diffusion must exclude black background for the same reason as
+            # the kernel average above -- otherwise propagation can pull a
+            # black value inward from the border instead of only ever
+            # propagating genuine tissue color. Diffusion may still compute
+            # *some* value for black-background pixels internally (harmless,
+            # since they're reachable too), but the final output below only
+            # ever takes the diffused value where the pixel was actually
+            # masked, so black background itself is never altered.
+            known_filt = torch.clamp(valid_filt_px + valid_filt.float() * mask, max=1.0)
+            filtered_diffused = diffusion_fill(filtered_partial, known_filt, self.opt.specular_fill_iters)
+            filtered = torch.where(mask > 0.5, filtered_diffused, filtered_partial)
             outputs[("filtered", 0, 0)] = filtered
+
+            # separate, wider-kernel neighbor average for `reflectance` -- plain
+            # reflectance-space average, WITHOUT the input-luminance rescaling
+            # above (that rescaling made sense for `filtered`, but `reflectance`
+            # has its own brightness statistics, so reusing a luminance-matched
+            # value there just mismatched it against its own neighborhood,
+            # visible as dark dots instead of a smooth blend). A larger kernel
+            # here only smooths the fill color, it doesn't need to preserve
+            # spatial detail the way `filtered` does. Where there are no valid
+            # neighbors at all, leave reflectance unchanged.
+            k_refl = self.opt.specular_kernel_reflectance
+            pad_refl = k_refl // 2
+            valid_refl_px = (1 - mask) * valid_fov_avg
+            refl_non_spec_refl = reflectance * valid_refl_px
+            sum_refl_refl = F.avg_pool2d(refl_non_spec_refl, k_refl, stride=1, padding=pad_refl) * (k_refl**2)
+            count_refl = F.avg_pool2d(valid_refl_px, k_refl, stride=1, padding=pad_refl) * (k_refl**2)
+            neigh_refl_raw_refl = sum_refl_refl / (count_refl + 1e-6)
+            valid_refl = count_refl > 0.5
+            neigh_refl_for_reflectance = torch.where(valid_refl, neigh_refl_raw_refl, reflectance)
+            neigh_refl_for_reflectance = torch.clamp(neigh_refl_for_reflectance, 0.0, 1.0)
 
             # same masked-pixel replacement, applied to the reflectance channel too --
             # previously only `filtered` had specular pixels replaced, so `reflectance`
             # (concatenated right alongside it) fed the encoder with uncorrected glare.
-            reflectance_filtered = reflectance * (1 - mask) + neigh_refl * mask
+            reflectance_filtered_partial = reflectance * (1 - mask) + neigh_refl_for_reflectance * mask
+            known_refl = torch.clamp(valid_refl_px + valid_refl.float() * mask, max=1.0)
+            reflectance_filtered_diffused = diffusion_fill(reflectance_filtered_partial, known_refl, self.opt.specular_fill_iters)
+            reflectance_filtered = torch.where(mask > 0.5, reflectance_filtered_diffused, reflectance_filtered_partial)
             outputs[("reflectance_filtered", 0, 0)] = reflectance_filtered
 
             depth_input = torch.cat([filtered, reflectance_filtered, mask], dim=1)
@@ -646,21 +730,248 @@ class Trainer:
             # ---- Specular brightness prior ----
             brightness = raw.mean(1, keepdim=True)
 
-            # high-pass ?? ?? (specular? sharp)
+            # high-pass (locally brighter than neighborhood -> specular candidate)
             blur = torch.nn.functional.avg_pool2d(brightness, 9, stride=1, padding=4)
             high_freq = torch.clamp(brightness - blur, min=0.0)
 
-            # ?? 3%? ??
-            threshold = torch.quantile(high_freq.flatten(1), 0.97, dim=1, keepdim=True)
-            threshold = threshold.view(-1,1,1,1)
+            # exclude the outer border from both the threshold computation and
+            # the mask itself -- the endoscope's own vignette edge is a sharp,
+            # elongated local-contrast spike that the heuristic can't tell apart
+            # from real tissue specularity, and real specular highlights don't
+            # occur right at the frame border anyway. Zeroing it here keeps it
+            # from skewing the core threshold upward and (more importantly)
+            # keeps region growing below from running along the vignette edge,
+            # where an elongated bright line has far more pixels to grow into
+            # than a small, roughly round specular highlight does.
+            border_frac = self.opt.specular_border_frac
+            if border_frac > 0:
+                bh = max(1, int(high_freq.shape[2] * border_frac))
+                bw = max(1, int(high_freq.shape[3] * border_frac))
+                border_mask = torch.ones_like(high_freq)
+                border_mask[:, :, :bh, :] = 0
+                border_mask[:, :, -bh:, :] = 0
+                border_mask[:, :, :, :bw] = 0
+                border_mask[:, :, :, -bw:] = 0
+            else:
+                border_mask = torch.ones_like(high_freq)
 
-            specular_map = torch.clamp(high_freq - threshold, min=0.0)
+            # the rectangular border strip above only catches the vignette where
+            # it runs along the four straight image edges -- C3VD/C3VDv2 frames
+            # are actually an OCTAGON with the corners cut off diagonally, so a
+            # rectangular margin leaves the diagonal corner edges of that
+            # vignette completely uncovered. Detect the true visible-FOV shape
+            # directly from the image instead (outside-FOV pixels render as
+            # exact black), then erode it inward by specular_fov_margin so the
+            # blur(,9)-radius halo around that boundary (which always reads as
+            # locally "brighter than its neighborhood" once black pixels enter
+            # the 9x9 blur window) is excluded too. This follows whatever shape
+            # the FOV actually is (circle, octagon, full rectangle) instead of
+            # assuming a fixed rectangular inset.
+            valid_fov = (brightness > self.opt.specular_fov_black_threshold).float()
+            pad = self.opt.specular_fov_margin
+            fov_mask = -torch.nn.functional.max_pool2d(-valid_fov, kernel_size=2 * pad + 1, stride=1, padding=pad)
+
+            border_mask = border_mask * fov_mask
+            high_freq = high_freq * border_mask
+
+            # top 3% of locally-bright pixels, per image -- this confirmed/core
+            # region is the only place the 97th-percentile cutoff is applied.
+            # On its own this is purely per-frame-relative, so it always forces
+            # exactly ~3% of every frame into the core set even on frames with
+            # little or no genuine specular highlight (confirmed directly: on
+            # C3VD/C3VDv2 most of that forced 3% turns out to be ordinary
+            # tissue edges at ~0.68 brightness, not real specular highlight at
+            # ~0.999). specular_core_brightness_floor turns the quantile into a
+            # CAP instead of a floor: a pixel also has to be absolutely bright
+            # enough to count, so a frame with little real specularity ends up
+            # with a smaller (or empty) core instead of an artificially padded
+            # one, while a frame with genuine abundant specularity can still
+            # use the full ~3% budget.
+            core_threshold = torch.quantile(high_freq.flatten(1), 0.97, dim=1, keepdim=True)
+            core_threshold = core_threshold.view(-1, 1, 1, 1)
+            core_mask = (high_freq > core_threshold).float()
+            # The brightness floor is checked against the local max, not each
+            # pixel's own value -- high_freq (a high-pass filter) only fires at
+            # the EDGE of a bright region, never at its flat, locally-uniform
+            # center, so the exact pixel it selects is structurally dimmer than
+            # the highlight it belongs to (sitting mid-gradient between the
+            # highlight and the background). Checking the raw pixel's own
+            # brightness against the floor rejects genuine, visually obvious
+            # highlights whose detected rim dips just under the floor even
+            # though the highlight itself clears it a few pixels away
+            # (confirmed directly: of the pixels passing the top-3% contrast
+            # test, only 9% passed the floor at the exact pixel, vs 28% -- 3x
+            # more -- with a pixel above the floor somewhere in a 7x7
+            # neighborhood). This can only let MORE of the already
+            # top-3%-by-contrast candidates through, never exceed that 3% cap,
+            # so it can't reopen the forced-coverage problem the floor exists
+            # to prevent -- it only fixes which of those candidates pass.
+            local_max_brightness = torch.nn.functional.max_pool2d(brightness, kernel_size=7, stride=1, padding=3)
+            core_mask = core_mask * (local_max_brightness > self.opt.specular_core_brightness_floor).float()
+
+            # pixels that are close enough to pure white are confirmed specular
+            # outright, bypassing the 97th-percentile cutoff entirely -- a true
+            # saturated highlight can cover more than 3% of a frame, and
+            # near-white pixels can never plausibly be real tissue color. These
+            # are folded into the seed/core set below (not just OR'd into the
+            # final mask), so they also act as anchors for region growing, the
+            # same way an ordinary core pixel does. Default threshold (1.01) is
+            # unreachable by any valid [0,1] pixel, so this is inert unless
+            # explicitly enabled.
+            white_component = raw.min(dim=1, keepdim=True).values
+            white_mask = (white_component > self.opt.specular_white_threshold).float()
+            white_mask = white_mask * border_mask
+            core_mask = torch.clamp(core_mask + white_mask, max=1.0)
+
+            # morphological closing: seal small gaps in the core selection
+            # before growth/hole-fill see it. The quantile-based local-contrast
+            # threshold is porous even inside a large, solidly-saturated
+            # highlight, and that porosity keeps the gaps connected through to
+            # the image border, so hole-fill's enclosed-region check never
+            # triggers on it. Dilate-then-erode with the same kernel fills
+            # gaps up to ~half the kernel width without expanding the overall
+            # footprint the way growth does.
+            if self.opt.specular_core_closing_kernel > 1:
+                k = self.opt.specular_core_closing_kernel
+                pad = k // 2
+                dilated = torch.nn.functional.max_pool2d(core_mask, kernel_size=k, stride=1, padding=pad)
+                core_mask = -torch.nn.functional.max_pool2d(-dilated, kernel_size=k, stride=1, padding=pad)
+                core_mask = core_mask * border_mask
+
+            # region growing: propagate the ORIGINAL confirmed core pixels' own
+            # brightness values outward (never updated by newly-grown halo
+            # pixels -- ref_value always traces back to a real confirmed
+            # specular pixel's actual intensity, propagated via repeated
+            # nearest-neighbor max-pooling up to specular_grow_iters pixels
+            # away). A candidate pixel is only added if its own brightness is
+            # within specular_grow_tolerance of that specific nearby core
+            # pixel's value -- never compared against a global/whole-image
+            # threshold and never against other halo pixels. This is what
+            # keeps growth bounded: a pixel has to genuinely resemble a real
+            # confirmed specular highlight's brightness, not just be
+            # "somewhat bright" relative to an abstract statistic. (An earlier
+            # version used a single global threshold with a self-propagating
+            # frontier instead, which had no such anchor and could flood an
+            # entire smoothly-lit frame, e.g. C3VD's phantom material.)
+            #
+            # Crucially, the tolerance check is applied AT EVERY HOP, not just
+            # once at the end against the final destination pixel. Gating only
+            # the final pixel let the wavefront "tunnel": reachability
+            # (ref_known) and the propagated reference value both used to
+            # advance by raw distance regardless of whether the pixels along
+            # the way matched anything, so a pixel 8 steps out could inherit a
+            # bright core's value through a chain of completely unrelated
+            # intermediate pixels that themselves never passed the tolerance
+            # test and never ended up in the mask -- producing a mask pixel
+            # with no visible, contiguous connection back to the specular
+            # region it supposedly grew from (confirmed directly: ~26% of
+            # connected components in the old grown_mask contained zero
+            # original core pixels). Now a candidate only becomes known -- and
+            # can only then serve as a stepping stone for the NEXT hop -- if
+            # ITS OWN brightness already matches the value reaching it this
+            # step, so the wavefront can only ever advance through a genuinely
+            # contiguous chain of matching pixels.
+            # specular_grow_iters is kept deliberately small (default 8): a
+            # large enough value to let growth fully reach a large, solid,
+            # uniformly-saturated highlight's interior (whose flat center has
+            # zero local contrast, so the core heuristic can only ever seed
+            # its EDGES) also lets it reach further out along real but
+            # unrelated nearby structure -- verified directly, this produced a
+            # new visible streak extending from an otherwise correct blob.
+            # The enclosed-hole fill below patches a large highlight's
+            # un-reached interior without that side effect, since it can only
+            # ever fill a pixel fully surrounded by the mask, never extend the
+            # mask outward -- so the hop budget here stays tuned to real
+            # specular extent, and interior coverage gaps are handled
+            # separately where doing so is provably safe.
+            ref_value = brightness * core_mask
+            ref_known = core_mask.clone()
+            hop_distance = torch.zeros_like(core_mask)
+            for hop_idx in range(self.opt.specular_grow_iters):
+                cand_value = torch.nn.functional.max_pool2d(ref_value, kernel_size=3, stride=1, padding=1)
+                cand_reach = torch.nn.functional.max_pool2d(ref_known, kernel_size=3, stride=1, padding=1)
+                candidate = cand_reach * (1 - ref_known)
+                close_enough_here = (torch.abs(brightness - cand_value) < self.opt.specular_grow_tolerance).float()
+                newly_known = candidate * close_enough_here
+                if newly_known.sum() == 0:
+                    break
+                ref_value = ref_value + cand_value * newly_known
+                ref_known = ref_known + newly_known
+                hop_distance = hop_distance + newly_known * (hop_idx + 1)
+
+            grown_mask = torch.clamp(ref_known, max=1.0)
+            # growth itself must never claim the excluded vignette ring, even if
+            # some boundary pixel's brightness happens to fall within tolerance
+            # of a nearby core pixel (the anti-aliased transition between tissue
+            # and black spans the full brightness range over just a few pixels,
+            # so some such coincidence is close to guaranteed along any edge).
+            grown_mask = grown_mask * border_mask
+
+            # fill fully-enclosed holes: a gap entirely surrounded by masked
+            # pixels (identical brightness to its neighbors, just never
+            # reached, or reached one hop short of tolerance) has nowhere for
+            # the reconstruction kernel to draw a genuine unmasked neighbor
+            # from anyway. Flood-fill the UNMASKED area starting only from the
+            # image border, travelling only through unmasked pixels; any
+            # unmasked pixel that flood never reaches is, by definition, fully
+            # enclosed, and gets folded into the mask. Border-excluded pixels
+            # (vignette ring, black corners) always touch the image edge
+            # directly, so they're always reached and never mistaken for a
+            # hole -- re-excluding them at the end is just a defensive safety
+            # net, not load-bearing.
+            unmasked = 1 - grown_mask
+            reached = torch.zeros_like(grown_mask)
+            reached[:, :, 0, :] = 1
+            reached[:, :, -1, :] = 1
+            reached[:, :, :, 0] = 1
+            reached[:, :, :, -1] = 1
+            reached = reached * unmasked
+            max_fill_iters = max(grown_mask.shape[2], grown_mask.shape[3])
+            for _ in range(max_fill_iters):
+                expanded = torch.nn.functional.max_pool2d(reached, kernel_size=3, stride=1, padding=1) * unmasked
+                newly_reached = expanded * (1 - reached)
+                if newly_reached.sum() == 0:
+                    break
+                reached = reached + newly_reached
+            enclosed_holes = unmasked * (1 - reached)
+            grown_mask = torch.clamp(grown_mask + enclosed_holes, max=1.0)
+            grown_mask = grown_mask * border_mask
+
+            # hard per-frame coverage ceiling, applied LAST (after hole-fill,
+            # not before it) -- capping before hole-fill lets hole-fill add
+            # pixels back on top and silently blow past the nominal ceiling
+            # (verified directly: capping pre-hole-fill at 5% still produced
+            # frames over 12%). Priority favors core (hop 0) first, then
+            # growth by increasing hop distance, with hole-filled pixels
+            # lowest priority of all (included only if room remains under the
+            # cap after core+growth) -- frames whose natural total coverage
+            # already stays under the cap are completely unaffected.
+            if self.opt.specular_grow_max_coverage < 1.0:
+                far_hop = self.opt.specular_grow_iters + 1
+                hop_distance_filled = hop_distance + enclosed_holes * far_hop
+                # hop_distance is integer-valued, so a huge number of pixels
+                # tie at each hop level -- a plain >= threshold would either
+                # include or exclude an entire tied group at once, overshooting
+                # the cap by a full hop's worth of pixels. A small continuous
+                # tiebreak from high_freq (never large enough to cross a whole
+                # hop boundary, since high_freq is clamped to [0, ~1]) lets the
+                # quantile cut land within a hop level instead of only between
+                # them, so the cap is hit almost exactly.
+                priority_continuous = -hop_distance_filled.float() + 0.1 * high_freq
+                sentinel = torch.full_like(hop_distance_filled, -1e9)
+                priority = torch.where(grown_mask > 0.5, priority_continuous, sentinel)
+                cap_threshold = torch.quantile(
+                    priority.flatten(1), 1.0 - self.opt.specular_grow_max_coverage, dim=1, keepdim=True
+                ).view(-1, 1, 1, 1)
+                grown_mask = ((priority >= cap_threshold) & (grown_mask > 0.5)).float()
+                grown_mask = grown_mask * border_mask
+
+            specular_map = high_freq * grown_mask
 
             outputs["specular_vis"] = specular_map.detach()
 
-            # ---- Specular alignment loss (?? ?) ----
-            spec_binary = (specular_map.detach() > 0).float()
-            # specular ????? mask? ????
+            # ---- Specular alignment loss ----
+            spec_binary = grown_mask.detach()
             loss_mask_align = torch.nn.functional.binary_cross_entropy(
                 M_soft,
                 spec_binary

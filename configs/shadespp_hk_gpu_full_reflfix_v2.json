@@ -1,0 +1,38 @@
+{
+  "_comment": "Controlled re-run of reflfix's original design (static, forced-3% core mask, no brightness floor, no region growing -- specular_grow_iters=0 reduces grown_mask exactly to core_mask) but with every unrelated correctness fix from this session applied: FOV-shape-aware boundary exclusion in the core/heuristic computation (no vignette contamination), and FOV-aware neighbor averaging + diffusion_fill in the inpainting kernel (no black-background contamination near the boundary). specular_core_brightness_floor=0.0 disables the floor entirely (every local_max passes trivially), matching original reflfix's pure quantile-only core selection. Paired with v_hk_gpu_full_maskfix_k7_v2 (floor+growth, floor-location bug now fixed) as a controlled A/B isolating just the growth/floor design question.",
+
+  "model_name": "v_hk_gpu_full_reflfix_v2",
+  "log_dir": "models/shadespp",
+  "tau": 0.50,
+  "decomp_recon_weight": 0.3,
+  "reflec_constraint": 1.0,
+  "reprojection_constraint": 1.0,
+  "disparity_smoothness": 0.01,
+
+  "specular_grow_tolerance": 0.01,
+  "specular_grow_iters": 0,
+  "specular_core_brightness_floor": 0.0,
+  "specular_fov_black_threshold": 0.03,
+  "specular_fov_margin": 6,
+  "specular_fill_iters": 40,
+  "specular_kernel_filtered": 7,
+  "specular_kernel_reflectance": 7,
+
+  "data_path": "datasets/BBPS-2-3Frames/Undistorted/Frames",
+  "split": "hk",
+  "dataset": "hk",
+  "height": 288,
+  "width": 288,
+  "png": true,
+  "distorted": false,
+
+  "automasking": true,
+  "noadjust": true,
+
+  "batch_size": 8,
+  "num_workers": 8,
+  "log_frequency": 100,
+
+  "save_frequency": 1,
+  "num_epochs": 20
+}

@@ -1,0 +1,32 @@
+{
+  "_comment": "Pose eval config: SHADeS vs reflfix_v2 (current best checkpoint), full 119-sequence comparison.",
+
+  "data_root": "datasets/EndoMapper",
+  "sequences": null,
+  "colmap_root": "pseudoGT",
+  "frames_root": "colmap_benchmark_frames",
+  "colmap_model_subdir": "0",
+  "min_depth": 0.1,
+  "max_depth": 150.0,
+  "num_layers": 18,
+  "min_points_per_frame": 20,
+  "output_dir": "outputs/endomapper_eval",
+  "min_gt_depth_ratio": 0.05,
+  "undistort": true,
+  "undistort_balance": 0.0,
+
+  "models": [
+    {
+      "name": "SHADeS",
+      "load_weights_folder": "ckpt/finetuned_mono_hkfull_288_pseudo_dsms_automasking_noadjust/weights_19",
+      "num_layers": 18,
+      "is_shadespp": false
+    },
+    {
+      "name": "SHADeS++",
+      "load_weights_folder": "models/shadespp/v_hk_gpu_full_reflfix_v2/models/weights_19",
+      "num_layers": 18,
+      "is_shadespp": true
+    }
+  ]
+}
